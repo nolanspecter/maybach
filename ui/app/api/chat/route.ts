@@ -22,7 +22,12 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+    // Normalise: backend now returns `agents: string[]`
+    return NextResponse.json({
+      agents: data.agents ?? (data.agent ? [data.agent] : ["unknown"]),
+      result: data.result,
+      raw: data.raw,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: `Backend unreachable: ${err}` },
