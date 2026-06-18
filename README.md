@@ -8,16 +8,27 @@ A multi-agent system with four virtual employees — Data Analyst, Product Manag
 
 - Python 3.11+
 - Node.js 18+
-- An Anthropic API key
+- An AWS account with Bedrock access
 
 ---
 
-## 1. Get an Anthropic API Key
+## 1. Get AWS Credentials & Enable Bedrock
 
-1. Go to [console.anthropic.com](https://console.anthropic.com) and sign in (or create an account).
-2. Navigate to **API Keys** in the left sidebar.
-3. Click **Create Key**, give it a name, and copy the key — it starts with `sk-ant-...`.
-4. Store it somewhere safe; you won't be able to view it again.
+### Create an IAM user with Bedrock access
+
+1. Go to [console.aws.amazon.com/iam](https://console.aws.amazon.com/iam) and sign in.
+2. Navigate to **Users** → **Create user**.
+3. Give it a name (e.g. `maybach-agent`), click **Next**.
+4. Select **Attach policies directly** and search for **AmazonBedrockFullAccess** → check it → **Next** → **Create user**.
+5. Open the user → **Security credentials** tab → **Create access key**.
+6. Select **Application running outside AWS**, click through, and **download the CSV** or copy both keys.
+
+### Enable Claude model access in Bedrock
+
+1. Go to [console.aws.amazon.com/bedrock](https://console.aws.amazon.com/bedrock).
+2. In the left sidebar click **Model access** → **Modify model access**.
+3. Check the Claude models you want (Claude Sonnet recommended) → **Save changes**.
+4. Wait a few minutes for access to be approved (usually instant for Claude).
 
 ---
 
@@ -34,15 +45,20 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure your API key
+# Configure your credentials
 cp .env.example .env
 ```
 
-Open `.env` and paste your key:
+Open `.env` and fill in your AWS keys:
 
 ```env
-ANTHROPIC_API_KEY=sk-ant-...
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_DEFAULT_REGION=us-east-1
+BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250514-v1:0
 ```
+
+> **Region note:** Claude models on Bedrock are available in `us-east-1` and `us-west-2`. The `us.` prefix in the model ID enables cross-region inference for higher throughput.
 
 Start the API server:
 

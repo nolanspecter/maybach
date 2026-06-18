@@ -8,7 +8,7 @@ import os
 from typing import Annotated, Literal
 from dotenv import load_dotenv
 
-from langchain_anthropic import ChatAnthropic
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -22,7 +22,7 @@ import agents.vswe as vswe_agent
 import agents.vpm as vpm_agent
 import agents.vds as vds_agent
 
-MODEL = "claude-sonnet-4-6"
+MODEL = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250514-v1:0")
 
 # ── State ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ class RouterDecision(BaseModel):
     next: Literal["vDA", "vPM", "vSWE", "vDS", "FINISH"]
     reasoning: str
 
-_router_llm = ChatAnthropic(model=MODEL).with_structured_output(RouterDecision)
+_router_llm = ChatBedrockConverse(model=MODEL).with_structured_output(RouterDecision)
 
 
 def router_node(state: OrchestratorState) -> OrchestratorState:
