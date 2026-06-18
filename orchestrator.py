@@ -7,11 +7,9 @@ Fan-out uses LangGraph's Send API:
 
 To go remote, replace the worker node bodies with RemoteGraph calls.
 """
-import os
 from typing import Annotated, Literal
 from dotenv import load_dotenv
 
-from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -20,12 +18,11 @@ from pydantic import BaseModel
 
 load_dotenv()
 
+from llm import get_llm
 import agents.vda as vda_agent
 import agents.vswe as vswe_agent
 import agents.vpm as vpm_agent
 import agents.vds as vds_agent
-
-MODEL = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250514-v1:0")
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
@@ -57,7 +54,7 @@ class RouterDecision(BaseModel):
     workers: list[WorkerName]
     reasoning: str
 
-_router_llm = ChatBedrockConverse(model=MODEL).with_structured_output(RouterDecision)
+_router_llm = get_llm().with_structured_output(RouterDecision)
 
 
 def router_node(state: OrchestratorState) -> OrchestratorState:

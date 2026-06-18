@@ -8,67 +8,85 @@ A multi-agent system with four virtual employees — Data Analyst, Product Manag
 
 - Python 3.11+
 - Node.js 18+
-- An AWS account with Bedrock access
+- An LLM provider (Ollama for free local testing, or AWS Bedrock for production)
 
 ---
 
-## 1. Get AWS Credentials & Enable Bedrock
+## Option A — Run Free with Ollama (recommended for testing)
 
-### Create an IAM user with Bedrock access
+No API keys, no account, no cost. Runs entirely on your machine.
+
+### 1. Install Ollama and pull a model
+
+```bash
+# macOS
+brew install ollama
+
+# Then pull a model (llama3.2 is ~2GB, runs well on most machines)
+ollama pull llama3.2
+
+# Start the Ollama server (runs in background)
+ollama serve
+```
+
+> Other good free models: `mistral`, `gemma2:2b` (smaller/faster), `llama3.1:8b`
+
+### 2. Configure `.env`
+
+```bash
+cp .env.example .env
+```
+
+The default `.env.example` already points to Ollama — no changes needed:
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=llama3.2
+```
+
+---
+
+## Option B — AWS Bedrock (production / Claude models)
+
+### 1. Get AWS credentials
 
 1. Go to [console.aws.amazon.com/iam](https://console.aws.amazon.com/iam) and sign in.
 2. Navigate to **Users** → **Create user**.
 3. Give it a name (e.g. `maybach-agent`), click **Next**.
-4. Select **Attach policies directly** and search for **AmazonBedrockFullAccess** → check it → **Next** → **Create user**.
-5. Open the user → **Security credentials** tab → **Create access key**.
-6. Select **Application running outside AWS**, click through, and **download the CSV** or copy both keys.
+4. Select **Attach policies directly** → search **AmazonBedrockFullAccess** → **Create user**.
+5. Open the user → **Security credentials** → **Create access key** → download the CSV.
 
-### Enable Claude model access in Bedrock
+### 2. Enable Claude in Bedrock
 
 1. Go to [console.aws.amazon.com/bedrock](https://console.aws.amazon.com/bedrock).
-2. In the left sidebar click **Model access** → **Modify model access**.
-3. Check the Claude models you want (Claude Sonnet recommended) → **Save changes**.
-4. Wait a few minutes for access to be approved (usually instant for Claude).
+2. **Model access** → **Modify model access** → check Claude Sonnet → **Save**.
 
----
-
-## 2. Backend Setup
-
-```bash
-# Clone / enter the project
-cd maybach
-
-# Create and activate a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure your credentials
-cp .env.example .env
-```
-
-Open `.env` and fill in your AWS keys:
+### 3. Configure `.env`
 
 ```env
+LLM_PROVIDER=bedrock
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_DEFAULT_REGION=us-east-1
 BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250514-v1:0
 ```
 
-> **Region note:** Claude models on Bedrock are available in `us-east-1` and `us-west-2`. The `us.` prefix in the model ID enables cross-region inference for higher throughput.
+---
 
-Start the API server:
+## Backend Setup
 
 ```bash
+cd maybach
+
+python3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+
+pip install -r requirements.txt
+
 uvicorn server:app --reload --port 8000
 ```
 
-The server is ready when you see `Uvicorn running on http://127.0.0.1:8000`.
-
-You can verify it with:
+Verify it's running:
 
 ```bash
 curl http://localhost:8000/health
@@ -77,7 +95,7 @@ curl http://localhost:8000/health
 
 ---
 
-## 3. Frontend Setup
+## Frontend Setup
 
 ```bash
 cd ui
@@ -89,9 +107,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 4. CLI (optional)
-
-You can also run tasks directly from the terminal without the UI:
+## CLI (optional)
 
 ```bash
 # From the maybach/ directory with the venv active
@@ -104,8 +120,9 @@ python main.py "Write a PRD for a user notification system"
 
 ```
 maybach/
-├── .env                  # Your API key (never commit this)
-├── .env.example          # Template
+├── .env                  # Your config (never commit this)
+├── .env.example          # Template — defaults to Ollama
+├── llm.py                # LLM factory (switches provider via LLM_PROVIDER)
 ├── requirements.txt      # Python dependencies
 ├── main.py               # CLI entrypoint
 ├── orchestrator.py       # LangGraph supervisor graph
@@ -124,7 +141,7 @@ maybach/
 
 ## How It Works
 
-Every task goes through a **router** that picks the right worker:
+Every task goes through a **router** that picks the right worker(s):
 
 | Worker | Role | Does |
 |--------|------|------|
@@ -133,4 +150,4 @@ Every task goes through a **router** that picks the right worker:
 | vSWE | Software Engineer | Code, debugging, scripts |
 | vDS | Data Scientist | ML models, stats, predictions |
 
-The router can chain workers — e.g., vPM writes a spec then vSWE implements it.
+The router can run workers **in parallel** (e.g. vDA + vDS simultaneously) or chain them sequentially. Each worker can also be called independently via `POST /agents/{name}`.
