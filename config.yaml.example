@@ -1,0 +1,20 @@
+llm:
+  # Provider: bedrock (default) | ollama
+  # Bedrock used if access_key_id set. Missing creds → auto-falls back to Ollama.
+  provider: bedrock
+
+bedrock:
+  # Use permanent IAM user keys (start with AKIA) — not temporary session keys (ASIA)
+  # IAM → Users → Security credentials → Create access key → "Outside AWS"
+  access_key_id: AKIA...
+  secret_access_key: your_secret_key_here
+  region: us-east-1
+  model_id: global.anthropic.claude-haiku-4-5-20251001-v1:0
+
+  # Only needed for temporary session credentials (ASIA keys) — not recommended
+  # session_token: your_session_token_here
+
+ollama:
+  # Install: https://ollama.com  then: ollama pull llama3.2
+  model: llama3.2
+  base_url: http://localhost:11434

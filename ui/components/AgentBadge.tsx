@@ -3,6 +3,7 @@ const AGENT_STYLES: Record<string, { label: string; color: string }> = {
   vPM:      { label: "Product Manager",  color: "bg-purple-500/15 text-purple-300 ring-purple-500/30" },
   vSWE:     { label: "Engineer",         color: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" },
   vDS:      { label: "Data Scientist",   color: "bg-orange-500/15 text-orange-300 ring-orange-500/30" },
+  Maybach:  { label: "Direct",            color: "bg-zinc-500/15 text-zinc-300 ring-zinc-500/30" },
   unknown:  { label: "Agent",            color: "bg-zinc-500/15 text-zinc-300 ring-zinc-500/30" },
 };
 

@@ -1,5 +1,6 @@
 # Python
 .env
+config.yaml
 .venv/
 __pycache__/
 *.pyc
@@ -20,3 +21,6 @@ ui/.env.local
 
 # Tool artifacts
 .understand-anything/
+
+# Shared agent workspace (runtime artifacts)
+workspace/
