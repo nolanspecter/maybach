@@ -4,6 +4,11 @@ FastAPI server exposing each worker agent and the full orchestrator.
 Run: uvicorn server:app --reload --port 8000
 """
 import re
+from config import load_config
+
+# Must run before agent imports — agents call get_llm() at module level
+load_config()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
