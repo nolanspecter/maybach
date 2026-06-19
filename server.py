@@ -8,6 +8,11 @@ The /agents/* routes are useful for calling a specific worker from external
 systems or for testing a worker in isolation without routing overhead.
 """
 import re
+from dotenv import load_dotenv
+
+# Must run before agent imports — agents call get_llm() at module level
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

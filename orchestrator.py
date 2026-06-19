@@ -14,6 +14,9 @@ RemoteGraph("name", url="...").invoke(...) — the orchestrator logic is unchang
 from typing import Annotated, Literal
 from dotenv import load_dotenv
 
+# Must run before llm/agent imports — get_llm() reads env vars at import time
+load_dotenv()
+
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -25,8 +28,6 @@ import agents.vda as vda_agent
 import agents.vswe as vswe_agent
 import agents.vpm as vpm_agent
 import agents.vds as vds_agent
-
-load_dotenv()
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
