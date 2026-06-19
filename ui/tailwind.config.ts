@@ -5,19 +5,24 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+        sans:    ["DM Sans", "system-ui", "sans-serif"],
+        serif:   ["Cormorant Garamond", "Georgia", "serif"],
+        mono:    ["JetBrains Mono", "monospace"],
       },
       colors: {
         surface: {
-          DEFAULT: "#0a0a0b",
-          1: "#111113",
-          2: "#18181b",
-          3: "#232329",
-          4: "#2e2e36",
+          DEFAULT: "#0D0D0B",
+          1: "#141412",
+          2: "#1C1C19",
+          3: "#252522",
+          4: "#2E2E2A",
         },
-        border: "#2e2e36",
-        accent: "#7c6af7",
+        border:      "#2A2A26",
+        gold:        "#C9A96E",
+        "gold-dim":  "#7A6240",
+      },
+      letterSpacing: {
+        widest2: "0.25em",
       },
     },
   },

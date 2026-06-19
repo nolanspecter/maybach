@@ -1,20 +1,33 @@
-const AGENT_STYLES: Record<string, { label: string; color: string }> = {
-  vDA:      { label: "Data Analyst",     color: "bg-blue-500/15 text-blue-300 ring-blue-500/30" },
-  vPM:      { label: "Product Manager",  color: "bg-purple-500/15 text-purple-300 ring-purple-500/30" },
-  vSWE:     { label: "Engineer",         color: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" },
-  vDS:      { label: "Data Scientist",   color: "bg-orange-500/15 text-orange-300 ring-orange-500/30" },
-  Maybach:  { label: "Direct",            color: "bg-zinc-500/15 text-zinc-300 ring-zinc-500/30" },
-  unknown:  { label: "Agent",            color: "bg-zinc-500/15 text-zinc-300 ring-zinc-500/30" },
+// Precision instrument readout — left gold border, uppercase mono, no fill.
+// All agents share the gold accent; the label provides distinction.
+const AGENT_LABELS: Record<string, string> = {
+  vDA:     "Data Analyst",
+  vPM:     "Product Manager",
+  vSWE:    "Engineer",
+  vDS:     "Data Scientist",
+  Maybach: "Maybach",
+  unknown: "Agent",
 };
 
 export function AgentBadge({ agent }: { agent: string }) {
-  const style = AGENT_STYLES[agent] ?? AGENT_STYLES.unknown;
+  const label = AGENT_LABELS[agent] ?? AGENT_LABELS.unknown;
+  const isDirect = agent === "Maybach" || agent === "unknown";
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ring-1 ${style.color}`}
+      className={`inline-flex items-center gap-2 pl-2.5 pr-1 py-0.5 border-l ${
+        isDirect ? "border-border text-[#8A8782]" : "border-gold text-gold"
+      }`}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
-      {agent} · {style.label}
+      <span className="font-mono text-[9px] tracking-[0.18em] uppercase leading-none">
+        {agent !== "Maybach" && agent !== "unknown" ? agent : ""}
+      </span>
+      {agent !== "Maybach" && agent !== "unknown" && (
+        <span className="text-[#2A2A26] font-mono text-[9px]">·</span>
+      )}
+      <span className="font-mono text-[9px] tracking-[0.12em] uppercase leading-none opacity-70">
+        {label}
+      </span>
     </span>
   );
 }

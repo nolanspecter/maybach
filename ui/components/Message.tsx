@@ -17,8 +17,10 @@ export function Message({ msg }: { msg: ChatMessage }) {
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[70%] bg-surface-3 text-zinc-100 rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
-          {msg.content}
+        <div className="max-w-[68%] text-sm leading-relaxed text-right">
+          <p className="text-[#F0EDE8] border-r border-border pr-3 py-0.5">
+            {msg.content}
+          </p>
         </div>
       </div>
     );
@@ -27,8 +29,9 @@ export function Message({ msg }: { msg: ChatMessage }) {
   if (msg.role === "error") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[85%] bg-red-500/10 border border-red-500/20 text-red-300 rounded-2xl rounded-tl-sm px-4 py-3 text-sm">
-          {msg.content}
+        <div className="max-w-[85%] border-l border-red-800 pl-3 py-1">
+          <p className="text-[10px] font-mono tracking-widest uppercase text-red-700 mb-1">Error</p>
+          <p className="text-sm text-red-400/80">{msg.content}</p>
         </div>
       </div>
     );
@@ -36,18 +39,16 @@ export function Message({ msg }: { msg: ChatMessage }) {
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%] space-y-2">
+      <div className="w-full max-w-[88%] space-y-2.5">
         {msg.agents && msg.agents.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-3">
             {msg.agents.map((a) => <AgentBadge key={a} agent={a} />)}
           </div>
         )}
-        <div className="bg-surface-1 border border-border rounded-2xl rounded-tl-sm px-4 py-3">
-          <div className="prose text-sm">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {msg.content}
-            </ReactMarkdown>
-          </div>
+        <div className="prose">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {msg.content}
+          </ReactMarkdown>
         </div>
       </div>
     </div>
