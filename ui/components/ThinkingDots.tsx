@@ -1,16 +1,14 @@
 export function ThinkingDots() {
   return (
     <div className="flex justify-start">
-      <div className="bg-surface-1 border border-border rounded-2xl rounded-tl-sm px-4 py-3">
-        <div className="flex gap-1.5 items-center h-4">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce"
-              style={{ animationDelay: `${i * 0.15}s` }}
-            />
-          ))}
-        </div>
+      <div className="border-l border-gold pl-3 py-1 flex items-center gap-1.5 h-6">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="w-1 h-1 rounded-full bg-gold-dim animate-pulse"
+            style={{ animationDelay: `${i * 0.2}s`, animationDuration: "1s" }}
+          />
+        ))}
       </div>
     </div>
   );

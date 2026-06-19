@@ -11,6 +11,13 @@ const SUGGESTIONS = [
   "Train a churn prediction model on customer data",
 ];
 
+const WORKERS = [
+  { id: "vDA",  label: "Data Analyst" },
+  { id: "vPM",  label: "Product Manager" },
+  { id: "vSWE", label: "Engineer" },
+  { id: "vDS",  label: "Data Scientist" },
+];
+
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -89,43 +96,70 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-surface">
+
       {/* Header */}
-      <header className="flex-none border-b border-border px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-accent/20 border border-accent/30 flex items-center justify-center">
-            <span className="text-accent text-xs font-bold">M</span>
+      <header className="flex-none px-8 pt-6 pb-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            {/* Wordmark */}
+            <h1 className="font-serif text-[11px] tracking-[0.35em] uppercase text-[#F0EDE8] font-light select-none">
+              Maybach
+            </h1>
+            {/* Worker roster */}
+            <div className="flex items-center gap-5">
+              {WORKERS.map((w) => (
+                <span key={w.id} className="flex items-center gap-1.5">
+                  <span className="w-1 h-1 rounded-full bg-gold-dim" />
+                  <span className="font-mono text-[9px] tracking-[0.12em] uppercase text-[#8A8782]">
+                    {w.id}
+                  </span>
+                </span>
+              ))}
+            </div>
           </div>
-          <span className="text-sm font-semibold text-zinc-100 tracking-wide">Maybach</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {["vDA", "vPM", "vSWE", "vDS"].map((w) => (
-            <span key={w} className="text-[10px] text-zinc-500 font-mono">{w}</span>
-          ))}
+          {/* Rule */}
+          <div className="h-px bg-border" />
         </div>
       </header>
 
-      {/* Chat area */}
-      <main className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-3xl mx-auto space-y-5">
+      {/* Chat */}
+      <main className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="max-w-3xl mx-auto space-y-8">
+
           {isEmpty && (
-            <div className="flex flex-col items-center justify-center pt-24 pb-8 gap-6 text-center">
+            <div className="flex flex-col items-start pt-16 gap-10">
               <div>
-                <h1 className="text-2xl font-semibold text-zinc-100 mb-2">
-                  What can I help with?
-                </h1>
-                <p className="text-sm text-zinc-500">
-                  Your virtual team — analyst, PM, engineer, and data scientist — ready to go.
+                <p className="font-serif text-3xl font-light text-[#F0EDE8] tracking-tight leading-tight mb-3">
+                  Your virtual team,<br />ready to work.
+                </p>
+                <p className="text-sm text-[#8A8782] leading-relaxed max-w-sm">
+                  Analyst, product manager, engineer, and data scientist — deployed in parallel, coordinated automatically.
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
-                {SUGGESTIONS.map((s) => (
+
+              {/* Suggestion grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-px w-full max-w-xl bg-border">
+                {SUGGESTIONS.map((s, i) => (
                   <button
                     key={s}
                     onClick={() => sendMessage(s)}
-                    className="text-left px-4 py-3 rounded-xl border border-border bg-surface-1 hover:bg-surface-2 hover:border-zinc-600 text-xs text-zinc-400 transition-colors"
+                    className={`text-left p-4 bg-surface text-xs text-[#8A8782] hover:text-[#F0EDE8] hover:bg-surface-2 transition-colors leading-relaxed ${
+                      i === 0 ? "" : ""
+                    }`}
                   >
                     {s}
                   </button>
+                ))}
+              </div>
+
+              {/* Worker legend */}
+              <div className="flex flex-col gap-2">
+                {WORKERS.map((w) => (
+                  <div key={w.id} className="flex items-center gap-3">
+                    <span className="font-mono text-[9px] tracking-[0.15em] uppercase text-gold w-8">{w.id}</span>
+                    <span className="h-px w-4 bg-border" />
+                    <span className="text-xs text-[#8A8782]">{w.label}</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -141,36 +175,38 @@ export default function Home() {
       </main>
 
       {/* Input */}
-      <div className="flex-none border-t border-border px-4 py-4">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-          <div className="flex items-end gap-3 bg-surface-1 border border-border rounded-2xl px-4 py-3 focus-within:border-zinc-600 transition-colors">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Describe a task…"
-              rows={1}
-              className="flex-1 bg-transparent text-sm text-zinc-100 placeholder-zinc-600 resize-none outline-none max-h-32 overflow-y-auto leading-relaxed"
-              style={{ fieldSizing: "content" } as React.CSSProperties}
-              disabled={loading}
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || loading}
-              className="flex-none w-8 h-8 rounded-xl bg-accent disabled:bg-surface-3 disabled:text-zinc-600 text-white flex items-center justify-center transition-colors hover:bg-violet-500 active:scale-95"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-center text-[10px] text-zinc-700 mt-2">
-            Enter to send · Shift+Enter for newline
+      <div className="flex-none px-8 pb-6 pt-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="h-px bg-border mb-4" />
+          <form onSubmit={handleSubmit}>
+            <div className="flex items-end gap-4">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Describe a task…"
+                rows={1}
+                className="flex-1 bg-transparent text-sm text-[#F0EDE8] placeholder-[#3A3A36] resize-none outline-none max-h-32 overflow-y-auto leading-relaxed"
+                style={{ fieldSizing: "content" } as React.CSSProperties}
+                disabled={loading}
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || loading}
+                className="flex-none font-mono text-[10px] tracking-[0.2em] uppercase text-gold disabled:text-[#3A3A36] pb-0.5 transition-colors hover:text-[#F0EDE8]"
+              >
+                Send
+              </button>
+            </div>
+          </form>
+          <p className="text-[9px] font-mono tracking-[0.12em] uppercase text-[#3A3A36] mt-3">
+            Enter to send · Shift + Enter for newline
           </p>
-        </form>
+        </div>
       </div>
+
     </div>
   );
 }
