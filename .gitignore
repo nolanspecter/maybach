@@ -17,3 +17,6 @@ ui/.env.local
 
 # Claude
 .claude/
+
+# Tool artifacts
+.understand-anything/
