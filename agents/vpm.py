@@ -30,7 +30,8 @@ agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 def run(task: str, config: dict | None = None) -> str:
     result = agent.invoke({"messages": [("human", task)]}, config=config)
-    content = result["messages"][-1].content
+    raw = result["messages"][-1].content
+    content = raw if isinstance(raw, str) else str(raw)
     filename = f"vpm_{uuid.uuid4().hex[:8]}.md"
     (_workspace() / filename).write_text(content, encoding="utf-8")
     return f"workspace/{filename}"
