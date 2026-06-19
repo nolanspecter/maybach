@@ -10,19 +10,20 @@ Tools available:
   read_file      — read files other agents wrote
   list_files     — see what's in the shared workspace
 """
+import uuid
+from pathlib import Path
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm
 from tools.sql_tools import run_sql, list_tables, describe_table
 from tools.code_tools import run_python
-from tools.workspace_tools import write_file, read_file, list_files
+from tools.workspace_tools import write_file, read_file, list_files, _workspace
 
 SYSTEM_PROMPT = """You are a Virtual Data Analyst (vDA).
 Your job: answer data questions by querying databases and running analysis code.
 Always show your SQL or Python before running it.
 Return results as markdown tables when possible.
-Be concise — lead with the answer, then show supporting data.
-Use write_file to save reports or datasets for other agents to use."""
+Be concise — lead with the answer, then show supporting data."""
 
 _llm = get_llm()
 _tools = [run_sql, list_tables, describe_table, run_python, write_file, read_file, list_files]
@@ -32,4 +33,8 @@ agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 def run(task: str, config: dict | None = None) -> str:
     result = agent.invoke({"messages": [("human", task)]}, config=config)
-    return result["messages"][-1].content
+    content = result["messages"][-1].content
+    # Auto-save output to workspace so orchestrator can read and summarise
+    filename = f"vda_{uuid.uuid4().hex[:8]}.md"
+    (_workspace() / filename).write_text(content, encoding="utf-8")
+    return f"workspace/{filename}"

@@ -2,17 +2,14 @@
 Orchestrator — LangGraph supervisor that routes tasks to virtual employees.
 
 Graph shape:
-    START → router → [Send(vDA), Send(vSWE), ...] → aggregator → router → ... → END
-                   → direct → router → END
-                   → END  (FINISH)
+    START → router → [Send(vDA), Send(vSWE), ...] → aggregator → router → FINISH → summarizer → END
+                   → direct → END
 
-The router can:
-  - Fan out to one or more workers in parallel (Send API)
-  - Respond directly for conversational messages (DIRECT)
-  - Terminate (FINISH)
-
-To go remote: replace agent_module.run() calls with RemoteGraph.invoke().
+Workers write output to workspace/ and return the file path.
+Summarizer reads those files and synthesises a final response for the user.
 """
+import re
+from pathlib import Path
 from typing import Annotated, Literal
 from config import load_config
 
@@ -97,10 +94,9 @@ def router_node(state: OrchestratorState) -> OrchestratorState:
 def route_decision(state: OrchestratorState) -> list[Send] | str:
     workers = state.next_workers
     if not workers or workers == ["FINISH"]:
-        return END
+        return "summarizer"
     if workers == ["DIRECT"]:
         return "direct"
-    # Return one Send per worker — LangGraph runs them concurrently
     return [Send(w, state) for w in workers]
 
 
@@ -115,7 +111,6 @@ DIRECT_PROMPT = """You are Maybach, an AI assistant backed by a team of virtual 
 For conversational messages, respond naturally and helpfully.
 When describing your capabilities, be concrete about what each worker can do."""
 
-# Direct node uses the full worker model — quality matters for user-facing replies
 _direct_llm = get_llm()
 
 
@@ -138,10 +133,9 @@ def _worker_node(agent_module, label: str):
             (m.content for m in reversed(state.messages) if isinstance(m, HumanMessage)),
             "",
         )
-        result = agent_module.run(last_human)
-        # Prefix with label so server/UI can identify which worker responded
-        reply = AIMessage(content=f"[{label}] {result}")
-        # Return only new message; add_messages reducer merges it into shared state
+        # agent.run() writes output to workspace/ and returns the file path
+        file_path = agent_module.run(last_human)
+        reply = AIMessage(content=f"[{label}] {file_path}")
         return OrchestratorState(messages=[reply], next_workers=[])
     node.__name__ = label
     return node
@@ -160,6 +154,50 @@ def aggregator_node(state: OrchestratorState) -> OrchestratorState:
     return OrchestratorState(messages=state.messages, next_workers=[])
 
 
+# ── Summarizer — reads workspace files and responds to the user ───────────────
+
+SUMMARIZER_PROMPT = """You are Maybach. Virtual employees have completed their work and
+saved results to files. Read their outputs and synthesise a clear, concise response
+for the user. Combine insights where relevant. Don't just repeat file contents — interpret
+and present the key points."""
+
+_summarizer_llm = get_llm()
+
+
+def summarizer_node(state: OrchestratorState) -> OrchestratorState:
+    # Extract workspace paths from worker messages like "[vDA] workspace/vda_abc123.md"
+    worker_outputs = []
+    for msg in state.messages:
+        if not isinstance(msg, AIMessage):
+            continue
+        match = re.match(r"^\[(\w+)\]\s*(workspace/\S+)", msg.content)
+        if not match:
+            continue
+        label, path_str = match.group(1), match.group(2)
+        path = Path(path_str)
+        if path.exists():
+            content = path.read_text(encoding="utf-8")
+            worker_outputs.append(f"## [{label}] output\n{content}")
+
+    user_question = next(
+        (m.content for m in state.messages if isinstance(m, HumanMessage)), ""
+    )
+
+    if not worker_outputs:
+        # No worker files found — shouldn't happen, but fail gracefully
+        reply = AIMessage(content="Workers completed but no output files were found.")
+        return OrchestratorState(messages=[reply], next_workers=[])
+
+    summary_input = (
+        f"User asked: {user_question}\n\n"
+        + "\n\n".join(worker_outputs)
+    )
+    messages = [("system", SUMMARIZER_PROMPT), ("human", summary_input)]
+    response = _summarizer_llm.invoke(messages)
+    reply = AIMessage(content=response.content)
+    return OrchestratorState(messages=[reply], next_workers=[])
+
+
 # ── Graph ─────────────────────────────────────────────────────────────────────
 
 def build_graph() -> StateGraph:
@@ -168,6 +206,7 @@ def build_graph() -> StateGraph:
     g.add_node("router",     router_node)
     g.add_node("direct",     direct_node)
     g.add_node("aggregator", aggregator_node)
+    g.add_node("summarizer", summarizer_node)
     g.add_node("vDA",        vda_node)
     g.add_node("vPM",        vpm_node)
     g.add_node("vSWE",       vswe_node)
@@ -175,19 +214,20 @@ def build_graph() -> StateGraph:
 
     g.add_edge(START, "router")
 
-    # Fan-out: router → parallel workers, direct response, or END
+    # Fan-out: router → parallel workers, direct response, or summarizer
     g.add_conditional_edges(
         "router", route_decision,
-        ["vDA", "vPM", "vSWE", "vDS", "direct", END]
+        ["vDA", "vPM", "vSWE", "vDS", "direct", "summarizer"]
     )
 
-    # All workers converge at aggregator before the next router decision
+    # All workers converge at aggregator, then back to router for FINISH decision
     for worker in ["vDA", "vPM", "vSWE", "vDS"]:
         g.add_edge(worker, "aggregator")
 
     g.add_edge("aggregator", "router")
 
-    # Direct replies are terminal — no need to re-evaluate with the router
+    # Summarizer and direct are both terminal
+    g.add_edge("summarizer", END)
     g.add_edge("direct", END)
 
     return g.compile()
@@ -199,7 +239,7 @@ graph = build_graph()
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def run(task: str) -> str:
-    """Run a task or message through the supervisor graph and return the final response."""
+    """Run a task through the supervisor graph and return the final synthesised response."""
     init_state = OrchestratorState(messages=[HumanMessage(content=task)])
     final_state = graph.invoke(init_state, config={"recursion_limit": 50})
     for msg in reversed(final_state["messages"]):

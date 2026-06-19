@@ -9,18 +9,18 @@ Tools available:
   read_file         — read research or data other agents wrote
   list_files        — see what's in the shared workspace
 """
+import uuid
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm
 from tools.research_tools import write_document, create_task_list, summarize_findings
-from tools.workspace_tools import write_file, read_file, list_files
+from tools.workspace_tools import write_file, read_file, list_files, _workspace
 
 SYSTEM_PROMPT = """You are a Virtual Product Manager (vPM).
 Your job: turn ambiguous requests into clear specs, PRDs, roadmaps, and prioritized backlogs.
 Structure every output with clear sections: Problem, Goals, Requirements, Success Metrics.
 Be opinionated — make decisions, don't ask clarifying questions unless truly blocked.
-Use the document tools to produce structured artifacts.
-Use write_file to save specs for engineers or analysts to reference."""
+Use the document tools to produce structured artifacts."""
 
 _llm = get_llm()
 _tools = [write_document, create_task_list, summarize_findings, write_file, read_file, list_files]
@@ -30,4 +30,7 @@ agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 def run(task: str, config: dict | None = None) -> str:
     result = agent.invoke({"messages": [("human", task)]}, config=config)
-    return result["messages"][-1].content
+    content = result["messages"][-1].content
+    filename = f"vpm_{uuid.uuid4().hex[:8]}.md"
+    (_workspace() / filename).write_text(content, encoding="utf-8")
+    return f"workspace/{filename}"
