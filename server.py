@@ -146,7 +146,7 @@ async def orchestrate_stream(req: TaskRequest):
                     if isinstance(output, dict):
                         for msg in output.get("messages", []):
                             c = getattr(msg, "content", "")
-                            if c and not c.startswith("workspace/"):
+                            if isinstance(c, str) and c and not c.startswith("workspace/"):
                                 ai_messages.append(c)
 
         except Exception as e:
