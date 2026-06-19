@@ -33,10 +33,16 @@ import agents.vds as vds_agent
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
+def _last_value(a: list[str], b: list[str]) -> list[str]:
+    # Workers all write [] to next_workers — last writer wins is fine here
+    return b
+
+
 class OrchestratorState(BaseModel):
     # add_messages reducer handles concurrent writes from parallel worker nodes
     messages: Annotated[list[BaseMessage], add_messages] = []
-    next_workers: list[str] = []
+    # _last_value reducer needed when parallel workers write next_workers simultaneously
+    next_workers: Annotated[list[str], _last_value] = []
 
 
 # ── Router ────────────────────────────────────────────────────────────────────
@@ -48,25 +54,25 @@ Available workers:
 - vPM  — product manager: PRDs, specs, roadmaps, requirements, prioritization
 - vSWE — software engineer: writing code, debugging, building features, scripts
 - vDS  — data scientist: ML models, statistical analysis, predictions, feature engineering
-- DIRECT — respond yourself ONLY for: pure greetings, small talk, or meta questions
-           about Maybach's capabilities with zero actionable work content
-- FINISH — all work is done, return results to the user
+- DIRECT — respond yourself for greetings, small talk, general questions, capability
+           questions, or anything that does NOT require data/code/specs/models
+- FINISH — a worker has already responded and the task is complete
 
 Decision process (follow every time):
-1. Break the message into sub-tasks. What is being asked, explicitly or implicitly?
-2. For each sub-task, ask: does this need specialist knowledge or tools?
-   - Data queries, numbers, tables    → vDA
-   - Specs, plans, requirements       → vPM
-   - Code, scripts, debugging         → vSWE
-   - Models, statistics, ML           → vDS
-   - Nothing needs a worker           → DIRECT
-3. Dispatch independent sub-tasks to workers in parallel.
-4. Err toward calling a worker — specialists add more value than a direct reply.
+1. Check if workers have already responded (look for [vDA], [vPM], [vSWE], [vDS] in history).
+   - If yes → choose FINISH unless the user explicitly asked for follow-up work.
+2. If no workers have responded yet, classify the message:
+   - Greeting, small talk, "what can you do?" → DIRECT
+   - Needs data/SQL/numbers → vDA
+   - Needs specs/PRD/roadmap → vPM
+   - Needs code/script/debug → vSWE
+   - Needs ML/stats/model → vDS
+   - Multiple independent needs → multiple workers in parallel
 
 Rules:
-- NEVER use DIRECT if any part of the message could benefit from a specialist worker.
+- FINISH immediately after workers respond — do not loop back to workers unless asked.
 - FINISH must be the only entry in the list when chosen.
-- Do not repeat a worker that already produced a result unless follow-up is needed."""
+- Do not repeat a worker already in history unless the user asked for a follow-up."""
 
 WorkerName = Literal["vDA", "vPM", "vSWE", "vDS", "DIRECT", "FINISH"]
 
@@ -181,8 +187,8 @@ def build_graph() -> StateGraph:
 
     g.add_edge("aggregator", "router")
 
-    # After a direct reply, loop to router so it can chain workers if needed
-    g.add_edge("direct", "router")
+    # Direct replies are terminal — no need to re-evaluate with the router
+    g.add_edge("direct", END)
 
     return g.compile()
 
@@ -195,7 +201,7 @@ graph = build_graph()
 def run(task: str) -> str:
     """Run a task or message through the supervisor graph and return the final response."""
     init_state = OrchestratorState(messages=[HumanMessage(content=task)])
-    final_state = graph.invoke(init_state)
+    final_state = graph.invoke(init_state, config={"recursion_limit": 50})
     for msg in reversed(final_state["messages"]):
         if isinstance(msg, AIMessage):
             return msg.content

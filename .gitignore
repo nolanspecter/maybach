@@ -21,3 +21,6 @@ ui/.env.local
 
 # Tool artifacts
 .understand-anything/
+
+# Shared agent workspace (runtime artifacts)
+workspace/
