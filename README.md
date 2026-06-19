@@ -73,6 +73,70 @@ BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250514-v1:0
 
 ---
 
+## Choosing a Provider
+
+Bedrock is default. If AWS creds missing, auto-falls back to Ollama with a warning.
+
+```env
+LLM_PROVIDER=bedrock   # default — Claude models, production quality
+LLM_PROVIDER=ollama    # force local — free, no account needed
+```
+
+| | Bedrock | Ollama |
+|---|---|---|
+| Cost | Pay per token | Free |
+| Setup | AWS account + IAM key | Install app + pull model |
+| Models | Claude (Haiku, Sonnet, Opus) | Open-source (Llama, Mistral, Gemma) |
+| Internet | Required | Not required |
+| Best for | Production | Development, testing |
+
+**Auto-fallback:** set `LLM_PROVIDER=bedrock` but leave AWS keys blank → system warns and runs Ollama automatically. Useful for local dev without touching the provider setting.
+
+---
+
+## Choosing Models
+
+### Ollama
+
+Set `OLLAMA_MODEL` to any model you've pulled. Smaller = faster, larger = smarter.
+
+```env
+OLLAMA_MODEL=llama3.2        # default, good balance (~2GB)
+OLLAMA_MODEL=gemma2:2b       # fastest, lightest (~1.5GB)
+OLLAMA_MODEL=llama3.1:8b     # stronger reasoning (~5GB)
+OLLAMA_MODEL=mistral         # good at code (~4GB)
+```
+
+Pull any model with `ollama pull <name>`. Browse all available models at [ollama.com/library](https://ollama.com/library).
+
+### Bedrock
+
+The system uses **two separate models**:
+
+| Role | Env var | Default |
+|------|---------|---------|
+| Router (orchestrator) | hardcoded in `llm.py` | `claude-haiku-4-5` |
+| Workers (vDA, vPM, vSWE, vDS) | `BEDROCK_MODEL_ID` | `claude-sonnet-4-5` |
+
+The router uses Haiku by default because it only classifies tasks — fast and cheap. Workers use Sonnet for quality output.
+
+**To change the worker model**, set `BEDROCK_MODEL_ID` in `.env`:
+
+```env
+# Faster / cheaper
+BEDROCK_MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0
+
+# Default
+BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250514-v1:0
+
+# Most capable
+BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-8-20251101-v1:0
+```
+
+**To change the router model**, edit the `HAIKU` constant in [`llm.py`](llm.py).
+
+---
+
 ## Backend Setup
 
 ```bash
