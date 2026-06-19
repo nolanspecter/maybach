@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, FormEvent } from "react";
 import { Message, ChatMessage } from "@/components/Message";
-import { ThinkingDots } from "@/components/ThinkingDots";
+import { EventLog, StreamEvent } from "@/components/EventLog";
 
 const SUGGESTIONS = [
   "Write a PRD for a user notification system",
@@ -19,63 +19,71 @@ const WORKERS = [
 ];
 
 export default function Home() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [messages, setMessages]     = useState<ChatMessage[]>([]);
+  const [liveEvents, setLiveEvents] = useState<StreamEvent[]>([]);
+  const [input, setInput]           = useState("");
+  const [loading, setLoading]       = useState(false);
+  const bottomRef                   = useRef<HTMLDivElement>(null);
+  const inputRef                    = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, liveEvents]);
 
   async function sendMessage(task: string) {
     if (!task.trim() || loading) return;
 
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: task,
-    };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: task }]);
     setInput("");
     setLoading(true);
+    setLiveEvents([]);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch("/api/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task }),
       });
-      const data = await res.json();
 
-      if (!res.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { id: Date.now().toString(), role: "error", content: data.error ?? "Unknown error" },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            role: "assistant",
-            content: data.result,
-            agents: data.agents,
-          },
-        ]);
+      const reader  = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let   buffer  = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event: StreamEvent = JSON.parse(line.slice(6));
+            if (event.type === "done") {
+              setLiveEvents([]);
+              setMessages((prev) => [...prev, {
+                id: Date.now().toString(), role: "assistant",
+                content: event.result, agents: event.agents,
+              }]);
+            } else if (event.type === "error") {
+              setLiveEvents([]);
+              setMessages((prev) => [...prev, { id: Date.now().toString(), role: "error", content: event.message }]);
+            } else {
+              setLiveEvents((prev) => [...prev, event]);
+            }
+          } catch { /* malformed line */ }
+        }
       }
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          role: "error",
-          content: `Network error: ${err}. Is the backend running on port 8000?`,
-        },
-      ]);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(), role: "error",
+        content: `Network error: ${err}. Is the backend running on port 8000?`,
+      }]);
     } finally {
       setLoading(false);
+      setLiveEvents([]);
       inputRef.current?.focus();
     }
   }
@@ -92,7 +100,7 @@ export default function Home() {
     }
   }
 
-  const isEmpty = messages.length === 0;
+  const isEmpty = messages.length === 0 && !loading;
 
   return (
     <div className="flex flex-col h-screen bg-surface">
@@ -169,7 +177,11 @@ export default function Home() {
             <Message key={msg.id} msg={msg} />
           ))}
 
-          {loading && <ThinkingDots />}
+          {liveEvents.length > 0 && (
+            <div className="pl-3 border-l border-[#2A2A26]">
+              <EventLog events={liveEvents} />
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
       </main>
