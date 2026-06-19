@@ -1,4 +1,11 @@
-"""Virtual Product Manager — writes PRDs, specs, roadmaps, and task breakdowns."""
+"""
+Virtual Product Manager (vPM) — turns ambiguous requests into structured artifacts.
+
+Tools available:
+  write_document    — produce a formatted PRD, spec, or report
+  create_task_list  — generate a prioritized, numbered checklist
+  summarize_findings — combine multiple inputs into a structured summary
+"""
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm
