@@ -14,10 +14,10 @@ The router can:
 To go remote: replace agent_module.run() calls with RemoteGraph.invoke().
 """
 from typing import Annotated, Literal
-from dotenv import load_dotenv
+from config import load_config
 
 # Must run before llm/agent imports — get_llm() reads env vars at module level
-load_dotenv()
+load_config()
 
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langgraph.graph import StateGraph, START, END

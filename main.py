@@ -1,8 +1,8 @@
 """CLI entrypoint — run a task through the orchestrator."""
 import sys
-from dotenv import load_dotenv
+from config import load_config
 
-load_dotenv()
+load_config()
 
 from orchestrator import run
 
