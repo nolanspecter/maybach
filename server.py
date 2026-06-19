@@ -48,12 +48,11 @@ def health():
 async def orchestrate(req: TaskRequest) -> OrchestrateResponse:
     try:
         raw = orchestrator.run(req.task)
-        # Collect all agent labels that appeared across all messages
+        # Worker responses are prefixed [LABEL]; direct responses have no prefix
         all_labels = re.findall(r"\[(\w+)\]", raw)
-        agents = list(dict.fromkeys(all_labels)) or ["unknown"]
-        # Strip label prefix from the displayed result
+        agents = list(dict.fromkeys(all_labels)) or ["Maybach"]
         match = re.match(r"^\[(\w+)\]\s*", raw)
-        result = raw[match.end():] if match else raw
+        result = raw[match.end():] if match else raw  # strip label if present
         return OrchestrateResponse(agents=agents, result=result, raw=raw)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
