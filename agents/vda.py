@@ -1,5 +1,12 @@
-"""Virtual Data Analyst — queries data, produces tables and insights."""
-from langchain_core.language_models import BaseChatModel
+"""
+Virtual Data Analyst (vDA) — answers data questions via SQL and Python.
+
+Tools available:
+  run_sql        — execute queries against a SQLite database
+  list_tables    — discover what tables exist
+  describe_table — inspect a table's schema before querying
+  run_python     — run analysis code (pandas, matplotlib, etc.)
+"""
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm
@@ -15,6 +22,7 @@ Be concise — lead with the answer, then show supporting data."""
 _llm = get_llm()
 _tools = [run_sql, list_tables, describe_table, run_python]
 
+# Agent is built once at import time; invoking it is thread-safe
 agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 

@@ -1,11 +1,15 @@
 """
-Orchestrator — supervisor that routes tasks to one or more virtual employees,
-running them in parallel when the router decides multiple workers are needed.
+Orchestrator — LangGraph supervisor that routes tasks to virtual employees.
 
-Fan-out uses LangGraph's Send API:
-  router → [Send(vDA, state), Send(vSWE, state)] → (parallel) → aggregator → router | END
+Graph shape:
+    START → router → [Send(vDA), Send(vSWE), ...] → aggregator → router → ... → END
 
-To go remote, replace the worker node bodies with RemoteGraph calls.
+The router can fan out to multiple workers in parallel via LangGraph's Send API.
+After all parallel branches complete, the aggregator acts as a join point and
+loops back to the router, which decides to call more workers or FINISH.
+
+To go remote: replace the `agent_module.run()` calls in worker nodes with
+RemoteGraph("name", url="...").invoke(...) — the orchestrator logic is unchanged.
 """
 from typing import Annotated, Literal
 from dotenv import load_dotenv
@@ -16,18 +20,20 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Send
 from pydantic import BaseModel
 
-load_dotenv()
-
 from llm import get_llm, HAIKU
 import agents.vda as vda_agent
 import agents.vswe as vswe_agent
 import agents.vpm as vpm_agent
 import agents.vds as vds_agent
 
+load_dotenv()
+
 # ── State ─────────────────────────────────────────────────────────────────────
 
 class OrchestratorState(BaseModel):
+    # add_messages reducer handles concurrent writes from parallel worker nodes
     messages: Annotated[list[BaseMessage], add_messages] = []
+    # Workers chosen by the router for this turn (reset to [] after fan-out)
     next_workers: list[str] = []
 
 
@@ -54,10 +60,13 @@ class RouterDecision(BaseModel):
     workers: list[WorkerName]
     reasoning: str
 
+# Router uses Haiku — classification task, no heavy reasoning needed
 _router_llm = get_llm(model=HAIKU).with_structured_output(RouterDecision)
 
 
 def router_node(state: OrchestratorState) -> OrchestratorState:
+    # Build a flat message list for the router; it needs to see the full
+    # conversation to avoid re-dispatching workers that already responded
     messages = [("system", ROUTER_PROMPT)] + [
         ("human" if isinstance(m, HumanMessage) else "assistant", m.content)
         for m in state.messages
@@ -70,6 +79,7 @@ def route_decision(state: OrchestratorState) -> list[Send] | str:
     workers = state.next_workers
     if not workers or workers == ["FINISH"]:
         return END
+    # Return a Send per worker — LangGraph runs them concurrently
     return [Send(w, state) for w in workers]
 
 
@@ -77,12 +87,16 @@ def route_decision(state: OrchestratorState) -> list[Send] | str:
 
 def _worker_node(agent_module, label: str):
     def node(state: OrchestratorState) -> OrchestratorState:
+        # Always pass the original human task, not the accumulated conversation.
+        # Workers are stateless — they receive one task and return one result.
         last_human = next(
             (m.content for m in reversed(state.messages) if isinstance(m, HumanMessage)),
             "",
         )
         result = agent_module.run(last_human)
+        # Prefix with label so the server and UI can identify which worker responded
         reply = AIMessage(content=f"[{label}] {result}")
+        # Return only the new message; add_messages reducer merges it into state
         return OrchestratorState(messages=[reply], next_workers=[])
     node.__name__ = label
     return node
@@ -94,10 +108,11 @@ vpm_node  = _worker_node(vpm_agent,  "vPM")
 vds_node  = _worker_node(vds_agent,  "vDS")
 
 
-# ── Aggregator — join point after parallel workers ────────────────────────────
+# ── Aggregator ────────────────────────────────────────────────────────────────
 
 def aggregator_node(state: OrchestratorState) -> OrchestratorState:
-    """Collects parallel worker results. Router decides what to do next."""
+    # Join point after parallel workers complete. State is already merged by
+    # add_messages at this point — just reset next_workers and loop to router.
     return OrchestratorState(messages=state.messages, next_workers=[])
 
 
@@ -115,10 +130,10 @@ def build_graph() -> StateGraph:
 
     g.add_edge(START, "router")
 
-    # Fan-out: router → parallel workers (or END)
+    # Conditional fan-out: router returns list[Send] for parallel workers, or END
     g.add_conditional_edges("router", route_decision, ["vDA", "vPM", "vSWE", "vDS", END])
 
-    # All workers join at aggregator, then loop back to router
+    # All workers converge at aggregator before the next router decision
     for worker in ["vDA", "vPM", "vSWE", "vDS"]:
         g.add_edge(worker, "aggregator")
 
@@ -133,6 +148,7 @@ graph = build_graph()
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def run(task: str) -> str:
+    """Run a task through the full supervisor graph and return the final AI message."""
     init_state = OrchestratorState(messages=[HumanMessage(content=task)])
     final_state = graph.invoke(init_state)
     for msg in reversed(final_state["messages"]):

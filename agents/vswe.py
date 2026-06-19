@@ -1,4 +1,10 @@
-"""Virtual Software Engineer — writes and executes code."""
+"""
+Virtual Software Engineer (vSWE) — writes and validates code.
+
+Tools available:
+  run_python — write and execute Python, verify output before responding
+  run_bash   — inspect the environment, check files, run shell commands
+"""
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm

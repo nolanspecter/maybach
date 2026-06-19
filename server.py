@@ -1,7 +1,11 @@
 """
-FastAPI server exposing each worker agent and the full orchestrator.
+FastAPI server with two surface areas:
 
-Run: uvicorn server:app --reload --port 8000
+  POST /orchestrate        — full supervisor graph (router + workers)
+  POST /agents/{name}      — single worker, bypasses the orchestrator entirely
+
+The /agents/* routes are useful for calling a specific worker from external
+systems or for testing a worker in isolation without routing overhead.
 """
 import re
 from fastapi import FastAPI, HTTPException
@@ -16,6 +20,7 @@ import orchestrator
 
 app = FastAPI(title="Maybach Agent Server", version="0.1.0")
 
+# Allow the Next.js dev server to call this API without CORS errors
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -34,9 +39,9 @@ class TaskResponse(BaseModel):
 
 
 class OrchestrateResponse(BaseModel):
-    agents: list[str]   # all workers that ran (1 or more)
-    result: str         # last AI message content (stripped of label)
-    raw: str            # full last message including label
+    agents: list[str]  # all workers that ran, in order (deduped)
+    result: str        # last AI message with the [LABEL] prefix stripped
+    raw: str           # full last message including label, for debugging
 
 
 @app.get("/health")
@@ -48,10 +53,11 @@ def health():
 async def orchestrate(req: TaskRequest) -> OrchestrateResponse:
     try:
         raw = orchestrator.run(req.task)
-        # Collect all agent labels that appeared across all messages
+        # Extract all [LABEL] tags from the response to show which workers ran.
+        # dict.fromkeys preserves insertion order while deduping.
         all_labels = re.findall(r"\[(\w+)\]", raw)
         agents = list(dict.fromkeys(all_labels)) or ["unknown"]
-        # Strip label prefix from the displayed result
+        # Strip the leading [LABEL] prefix for the clean result shown in the UI
         match = re.match(r"^\[(\w+)\]\s*", raw)
         result = raw[match.end():] if match else raw
         return OrchestrateResponse(agents=agents, result=result, raw=raw)
@@ -60,17 +66,19 @@ async def orchestrate(req: TaskRequest) -> OrchestrateResponse:
 
 
 def _make_route(agent_module, label: str):
+    """Factory that creates a FastAPI route handler for a single worker agent."""
     async def handler(req: TaskRequest) -> TaskResponse:
         try:
             result = agent_module.run(req.task)
             return TaskResponse(agent=label, result=result)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+    # FastAPI uses __name__ to generate the OpenAPI operation ID
     handler.__name__ = f"run_{label.lower()}"
     return handler
 
 
-app.post("/agents/vda", response_model=TaskResponse)(_make_route(vda_agent, "vDA"))
+app.post("/agents/vda",  response_model=TaskResponse)(_make_route(vda_agent,  "vDA"))
 app.post("/agents/vswe", response_model=TaskResponse)(_make_route(vswe_agent, "vSWE"))
-app.post("/agents/vpm", response_model=TaskResponse)(_make_route(vpm_agent, "vPM"))
-app.post("/agents/vds", response_model=TaskResponse)(_make_route(vds_agent, "vDS"))
+app.post("/agents/vpm",  response_model=TaskResponse)(_make_route(vpm_agent,  "vPM"))
+app.post("/agents/vds",  response_model=TaskResponse)(_make_route(vds_agent,  "vDS"))

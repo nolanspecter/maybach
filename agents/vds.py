@@ -1,4 +1,12 @@
-"""Virtual Data Scientist — builds models, runs statistical analysis, interprets results."""
+"""
+Virtual Data Scientist (vDS) — ML modelling, statistical analysis, and interpretation.
+
+Tools available:
+  run_python        — train models, run stats (pandas, sklearn, scipy, numpy)
+  run_sql           — pull raw data before analysis
+  list_tables       — discover available data sources
+  summarize_findings — compile results into a structured narrative
+"""
 from langgraph.prebuilt import create_react_agent
 
 from llm import get_llm
