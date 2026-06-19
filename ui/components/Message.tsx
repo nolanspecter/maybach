@@ -10,7 +10,7 @@ export interface ChatMessage {
   id: string;
   role: MessageRole;
   content: string;
-  agent?: string;
+  agents?: string[];
 }
 
 export function Message({ msg }: { msg: ChatMessage }) {
@@ -37,7 +37,11 @@ export function Message({ msg }: { msg: ChatMessage }) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[85%] space-y-2">
-        {msg.agent && <AgentBadge agent={msg.agent} />}
+        {msg.agents && msg.agents.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {msg.agents.map((a) => <AgentBadge key={a} agent={a} />)}
+          </div>
+        )}
         <div className="bg-surface-1 border border-border rounded-2xl rounded-tl-sm px-4 py-3">
           <div className="prose text-sm">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>

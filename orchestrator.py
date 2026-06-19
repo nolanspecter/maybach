@@ -1,8 +1,11 @@
 """
-Orchestrator — supervisor that routes tasks to the right virtual employee.
+Orchestrator — supervisor that routes tasks to one or more virtual employees,
+running them in parallel when the router decides multiple workers are needed.
 
-Workers run in-process now. To go remote, replace the `_call_*` functions
-with langgraph_sdk.RemoteGraph calls — the orchestrator logic stays the same.
+Fan-out uses LangGraph's Send API:
+  router → [Send(vDA, state), Send(vSWE, state)] → (parallel) → aggregator → router | END
+
+To go remote, replace the worker node bodies with RemoteGraph calls.
 """
 import os
 from typing import Annotated, Literal
@@ -12,11 +15,11 @@ from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
+from langgraph.types import Send
 from pydantic import BaseModel
 
 load_dotenv()
 
-# ── Worker imports (swap these for RemoteGraph when extracting) ──────────────
 import agents.vda as vda_agent
 import agents.vswe as vswe_agent
 import agents.vpm as vpm_agent
@@ -24,31 +27,34 @@ import agents.vds as vds_agent
 
 MODEL = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250514-v1:0")
 
-# ── State ────────────────────────────────────────────────────────────────────
+# ── State ─────────────────────────────────────────────────────────────────────
 
 class OrchestratorState(BaseModel):
     messages: Annotated[list[BaseMessage], add_messages] = []
-    next_worker: str = ""
-    worker_result: str = ""
+    next_workers: list[str] = []
 
 
-# ── Router ───────────────────────────────────────────────────────────────────
+# ── Router ────────────────────────────────────────────────────────────────────
 
-WORKERS = ["vDA", "vPM", "vSWE", "vDS", "FINISH"]
-
-ROUTER_PROMPT = """You are a supervisor routing tasks to the right virtual employee.
+ROUTER_PROMPT = """You are a supervisor routing tasks to virtual employees.
 
 Workers:
 - vDA  — data analyst: SQL queries, data exploration, metrics, dashboards
 - vPM  — product manager: PRDs, specs, roadmaps, requirements, prioritization
 - vSWE — software engineer: writing code, debugging, building features, scripts
 - vDS  — data scientist: ML models, statistical analysis, predictions, feature engineering
-- FINISH — task is fully complete, no more routing needed
+- FINISH — all work is done, return results to the user
 
-Given the conversation so far, choose exactly ONE worker to call next, or FINISH."""
+Rules:
+- Choose one OR multiple workers when tasks can be done in parallel (e.g. vDA + vDS together).
+- Choose FINISH only when all necessary work is complete.
+- FINISH must be the only entry in the list when chosen.
+- Do not repeat a worker that already produced a result unless the task requires a follow-up."""
+
+WorkerName = Literal["vDA", "vPM", "vSWE", "vDS", "FINISH"]
 
 class RouterDecision(BaseModel):
-    next: Literal["vDA", "vPM", "vSWE", "vDS", "FINISH"]
+    workers: list[WorkerName]
     reasoning: str
 
 _router_llm = ChatBedrockConverse(model=MODEL).with_structured_output(RouterDecision)
@@ -60,18 +66,17 @@ def router_node(state: OrchestratorState) -> OrchestratorState:
         for m in state.messages
     ]
     decision: RouterDecision = _router_llm.invoke(messages)
-    return OrchestratorState(
-        messages=state.messages,
-        next_worker=decision.next,
-        worker_result=state.worker_result,
-    )
+    return OrchestratorState(messages=state.messages, next_workers=decision.workers)
 
 
-def route_decision(state: OrchestratorState) -> str:
-    return state.next_worker
+def route_decision(state: OrchestratorState) -> list[Send] | str:
+    workers = state.next_workers
+    if not workers or workers == ["FINISH"]:
+        return END
+    return [Send(w, state) for w in workers]
 
 
-# ── Worker nodes ─────────────────────────────────────────────────────────────
+# ── Worker nodes ──────────────────────────────────────────────────────────────
 
 def _worker_node(agent_module, label: str):
     def node(state: OrchestratorState) -> OrchestratorState:
@@ -81,19 +86,22 @@ def _worker_node(agent_module, label: str):
         )
         result = agent_module.run(last_human)
         reply = AIMessage(content=f"[{label}] {result}")
-        return OrchestratorState(
-            messages=state.messages + [reply],
-            next_worker="",
-            worker_result=result,
-        )
+        return OrchestratorState(messages=[reply], next_workers=[])
     node.__name__ = label
     return node
 
 
-vda_node = _worker_node(vda_agent, "vDA")
+vda_node  = _worker_node(vda_agent,  "vDA")
 vswe_node = _worker_node(vswe_agent, "vSWE")
-vpm_node = _worker_node(vpm_agent, "vPM")
-vds_node = _worker_node(vds_agent, "vDS")
+vpm_node  = _worker_node(vpm_agent,  "vPM")
+vds_node  = _worker_node(vds_agent,  "vDS")
+
+
+# ── Aggregator — join point after parallel workers ────────────────────────────
+
+def aggregator_node(state: OrchestratorState) -> OrchestratorState:
+    """Collects parallel worker results. Router decides what to do next."""
+    return OrchestratorState(messages=state.messages, next_workers=[])
 
 
 # ── Graph ─────────────────────────────────────────────────────────────────────
@@ -101,22 +109,23 @@ vds_node = _worker_node(vds_agent, "vDS")
 def build_graph() -> StateGraph:
     g = StateGraph(OrchestratorState)
 
-    g.add_node("router", router_node)
-    g.add_node("vDA", vda_node)
-    g.add_node("vPM", vpm_node)
-    g.add_node("vSWE", vswe_node)
-    g.add_node("vDS", vds_node)
+    g.add_node("router",     router_node)
+    g.add_node("aggregator", aggregator_node)
+    g.add_node("vDA",        vda_node)
+    g.add_node("vPM",        vpm_node)
+    g.add_node("vSWE",       vswe_node)
+    g.add_node("vDS",        vds_node)
 
     g.add_edge(START, "router")
-    g.add_conditional_edges(
-        "router",
-        route_decision,
-        {"vDA": "vDA", "vPM": "vPM", "vSWE": "vSWE", "vDS": "vDS", "FINISH": END},
-    )
-    # After each worker, go back to the router so it can decide to call another
-    # worker or finish.
+
+    # Fan-out: router → parallel workers (or END)
+    g.add_conditional_edges("router", route_decision, ["vDA", "vPM", "vSWE", "vDS", END])
+
+    # All workers join at aggregator, then loop back to router
     for worker in ["vDA", "vPM", "vSWE", "vDS"]:
-        g.add_edge(worker, "router")
+        g.add_edge(worker, "aggregator")
+
+    g.add_edge("aggregator", "router")
 
     return g.compile()
 
@@ -127,10 +136,8 @@ graph = build_graph()
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def run(task: str) -> str:
-    """Run a task through the orchestrator and return the final result."""
     init_state = OrchestratorState(messages=[HumanMessage(content=task)])
     final_state = graph.invoke(init_state)
-    # Return the last AI message
     for msg in reversed(final_state["messages"]):
         if isinstance(msg, AIMessage):
             return msg.content

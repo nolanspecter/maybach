@@ -54,7 +54,7 @@ export default function Home() {
             id: Date.now().toString(),
             role: "assistant",
             content: data.result,
-            agent: data.agent,
+            agents: data.agents,
           },
         ]);
       }

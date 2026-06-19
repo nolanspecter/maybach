@@ -34,9 +34,9 @@ class TaskResponse(BaseModel):
 
 
 class OrchestrateResponse(BaseModel):
-    agent: str
-    result: str
-    raw: str
+    agents: list[str]   # all workers that ran (1 or more)
+    result: str         # last AI message content (stripped of label)
+    raw: str            # full last message including label
 
 
 @app.get("/health")
@@ -48,11 +48,13 @@ def health():
 async def orchestrate(req: TaskRequest) -> OrchestrateResponse:
     try:
         raw = orchestrator.run(req.task)
-        # Extract agent label from "[vDA] ..." prefix
+        # Collect all agent labels that appeared across all messages
+        all_labels = re.findall(r"\[(\w+)\]", raw)
+        agents = list(dict.fromkeys(all_labels)) or ["unknown"]
+        # Strip label prefix from the displayed result
         match = re.match(r"^\[(\w+)\]\s*", raw)
-        agent = match.group(1) if match else "unknown"
         result = raw[match.end():] if match else raw
-        return OrchestrateResponse(agent=agent, result=result, raw=raw)
+        return OrchestrateResponse(agents=agents, result=result, raw=raw)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
