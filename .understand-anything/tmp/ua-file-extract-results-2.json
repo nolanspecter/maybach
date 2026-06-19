@@ -1,0 +1,438 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 5,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "agents/vda.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 23,
+      "nonEmptyLines": 17,
+      "functions": [
+        {
+          "name": "run",
+          "startLine": 21,
+          "endLine": 23,
+          "params": [
+            "task",
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "run",
+          "line": 21,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "run",
+          "callee": "agent.invoke",
+          "lineNumber": 22
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "agents/vds.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 23,
+      "nonEmptyLines": 17,
+      "functions": [
+        {
+          "name": "run",
+          "startLine": 21,
+          "endLine": 23,
+          "params": [
+            "task",
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "run",
+          "line": 21,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "run",
+          "callee": "agent.invoke",
+          "lineNumber": 22
+        }
+      ],
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tools/code_tools.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 52,
+      "nonEmptyLines": 48,
+      "functions": [
+        {
+          "name": "run_python",
+          "startLine": 8,
+          "endLine": 30,
+          "params": [
+            "code"
+          ]
+        },
+        {
+          "name": "run_bash",
+          "startLine": 34,
+          "endLine": 52,
+          "params": [
+            "command"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "run_python",
+          "line": 7,
+          "isDefault": false
+        },
+        {
+          "name": "run_bash",
+          "line": 33,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "run_python",
+          "callee": "tempfile.NamedTemporaryFile",
+          "lineNumber": 10
+        },
+        {
+          "caller": "run_python",
+          "callee": "f.write",
+          "lineNumber": 11
+        },
+        {
+          "caller": "run_python",
+          "callee": "subprocess.run",
+          "lineNumber": 14
+        },
+        {
+          "caller": "run_python",
+          "callee": "result.stdout.strip",
+          "lineNumber": 20
+        },
+        {
+          "caller": "run_python",
+          "callee": "result.stderr.strip",
+          "lineNumber": 21
+        },
+        {
+          "caller": "run_python",
+          "callee": "os.unlink",
+          "lineNumber": 30
+        },
+        {
+          "caller": "run_bash",
+          "callee": "subprocess.run",
+          "lineNumber": 37
+        },
+        {
+          "caller": "run_bash",
+          "callee": "result.stdout.strip",
+          "lineNumber": 44
+        },
+        {
+          "caller": "run_bash",
+          "callee": "result.stderr.strip",
+          "lineNumber": 45
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tools/research_tools.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 26,
+      "nonEmptyLines": 20,
+      "functions": [
+        {
+          "name": "write_document",
+          "startLine": 5,
+          "endLine": 8,
+          "params": [
+            "title",
+            "content"
+          ]
+        },
+        {
+          "name": "create_task_list",
+          "startLine": 12,
+          "endLine": 17,
+          "params": [
+            "tasks"
+          ]
+        },
+        {
+          "name": "summarize_findings",
+          "startLine": 21,
+          "endLine": 26,
+          "params": [
+            "findings",
+            "title"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "write_document",
+          "line": 4,
+          "isDefault": false
+        },
+        {
+          "name": "create_task_list",
+          "line": 11,
+          "isDefault": false
+        },
+        {
+          "name": "summarize_findings",
+          "line": 20,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "write_document",
+          "callee": "title.upper",
+          "lineNumber": 8
+        },
+        {
+          "caller": "create_task_list",
+          "callee": "enumerate",
+          "lineNumber": 16
+        },
+        {
+          "caller": "create_task_list",
+          "callee": "\"\\n\".join",
+          "lineNumber": 17
+        },
+        {
+          "caller": "summarize_findings",
+          "callee": "\"\\n\".join",
+          "lineNumber": 25
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 3,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tools/sql_tools.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 61,
+      "nonEmptyLines": 51,
+      "functions": [
+        {
+          "name": "run_sql",
+          "startLine": 6,
+          "endLine": 30,
+          "params": [
+            "query",
+            "db_path"
+          ]
+        },
+        {
+          "name": "list_tables",
+          "startLine": 34,
+          "endLine": 44,
+          "params": [
+            "db_path"
+          ]
+        },
+        {
+          "name": "describe_table",
+          "startLine": 48,
+          "endLine": 61,
+          "params": [
+            "table_name",
+            "db_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "run_sql",
+          "line": 5,
+          "isDefault": false
+        },
+        {
+          "name": "list_tables",
+          "line": 33,
+          "isDefault": false
+        },
+        {
+          "name": "describe_table",
+          "line": 47,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "run_sql",
+          "callee": "sqlite3.connect",
+          "lineNumber": 9
+        },
+        {
+          "caller": "run_sql",
+          "callee": "conn.cursor",
+          "lineNumber": 10
+        },
+        {
+          "caller": "run_sql",
+          "callee": "cursor.execute",
+          "lineNumber": 11
+        },
+        {
+          "caller": "run_sql",
+          "callee": "conn.commit",
+          "lineNumber": 14
+        },
+        {
+          "caller": "run_sql",
+          "callee": "conn.close",
+          "lineNumber": 15
+        },
+        {
+          "caller": "run_sql",
+          "callee": "cursor.fetchall",
+          "lineNumber": 19
+        },
+        {
+          "caller": "run_sql",
+          "callee": "conn.close",
+          "lineNumber": 20
+        },
+        {
+          "caller": "run_sql",
+          "callee": "\" | \".join",
+          "lineNumber": 25
+        },
+        {
+          "caller": "run_sql",
+          "callee": "\" | \".join",
+          "lineNumber": 26
+        },
+        {
+          "caller": "run_sql",
+          "callee": "\"\\n\".join",
+          "lineNumber": 27
+        },
+        {
+          "caller": "run_sql",
+          "callee": "\" | \".join",
+          "lineNumber": 27
+        },
+        {
+          "caller": "run_sql",
+          "callee": "str",
+          "lineNumber": 27
+        },
+        {
+          "caller": "run_sql",
+          "callee": "\"\\n\".join",
+          "lineNumber": 28
+        },
+        {
+          "caller": "list_tables",
+          "callee": "sqlite3.connect",
+          "lineNumber": 37
+        },
+        {
+          "caller": "list_tables",
+          "callee": "conn.cursor",
+          "lineNumber": 38
+        },
+        {
+          "caller": "list_tables",
+          "callee": "cursor.execute",
+          "lineNumber": 39
+        },
+        {
+          "caller": "list_tables",
+          "callee": "cursor.fetchall",
+          "lineNumber": 40
+        },
+        {
+          "caller": "list_tables",
+          "callee": "conn.close",
+          "lineNumber": 41
+        },
+        {
+          "caller": "list_tables",
+          "callee": "\", \".join",
+          "lineNumber": 42
+        },
+        {
+          "caller": "describe_table",
+          "callee": "sqlite3.connect",
+          "lineNumber": 51
+        },
+        {
+          "caller": "describe_table",
+          "callee": "conn.cursor",
+          "lineNumber": 52
+        },
+        {
+          "caller": "describe_table",
+          "callee": "cursor.execute",
+          "lineNumber": 53
+        },
+        {
+          "caller": "describe_table",
+          "callee": "cursor.fetchall",
+          "lineNumber": 54
+        },
+        {
+          "caller": "describe_table",
+          "callee": "conn.close",
+          "lineNumber": 55
+        },
+        {
+          "caller": "describe_table",
+          "callee": "\"\\n\".join",
+          "lineNumber": 59
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 3,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    }
+  ]
+}

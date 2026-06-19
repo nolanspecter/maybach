@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from llm import get_llm
+from llm import get_llm, HAIKU
 import agents.vda as vda_agent
 import agents.vswe as vswe_agent
 import agents.vpm as vpm_agent
@@ -54,7 +54,7 @@ class RouterDecision(BaseModel):
     workers: list[WorkerName]
     reasoning: str
 
-_router_llm = get_llm().with_structured_output(RouterDecision)
+_router_llm = get_llm(model=HAIKU).with_structured_output(RouterDecision)
 
 
 def router_node(state: OrchestratorState) -> OrchestratorState:

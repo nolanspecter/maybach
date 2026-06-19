@@ -1,0 +1,76 @@
+{
+  "scriptCompleted": true,
+  "stats": {
+    "filesScanned": 30,
+    "filesWithImports": 10,
+    "totalEdges": 26
+  },
+  "importMap": {
+    ".env.example": [],
+    ".understand-anything/.understandignore": [],
+    "agents/__init__.py": [],
+    "agents/vda.py": [
+      "llm.py",
+      "tools/code_tools.py",
+      "tools/sql_tools.py"
+    ],
+    "agents/vds.py": [
+      "llm.py",
+      "tools/code_tools.py",
+      "tools/research_tools.py",
+      "tools/sql_tools.py"
+    ],
+    "agents/vpm.py": [
+      "llm.py",
+      "tools/research_tools.py"
+    ],
+    "agents/vswe.py": [
+      "llm.py",
+      "tools/code_tools.py"
+    ],
+    "llm.py": [],
+    "main.py": [
+      "orchestrator.py"
+    ],
+    "orchestrator.py": [
+      "agents/vda.py",
+      "agents/vds.py",
+      "agents/vpm.py",
+      "agents/vswe.py",
+      "llm.py"
+    ],
+    "README.md": [],
+    "requirements.txt": [],
+    "server.py": [
+      "agents/vda.py",
+      "agents/vds.py",
+      "agents/vpm.py",
+      "agents/vswe.py",
+      "orchestrator.py"
+    ],
+    "tools/__init__.py": [],
+    "tools/code_tools.py": [],
+    "tools/research_tools.py": [],
+    "tools/sql_tools.py": [],
+    "ui/app/api/chat/route.ts": [],
+    "ui/app/globals.css": [],
+    "ui/app/layout.tsx": [
+      "ui/app/globals.css"
+    ],
+    "ui/app/page.tsx": [
+      "ui/components/Message.tsx",
+      "ui/components/ThinkingDots.tsx"
+    ],
+    "ui/components/AgentBadge.tsx": [],
+    "ui/components/Message.tsx": [
+      "ui/components/AgentBadge.tsx"
+    ],
+    "ui/components/ThinkingDots.tsx": [],
+    "ui/next-env.d.ts": [],
+    "ui/next.config.mjs": [],
+    "ui/package.json": [],
+    "ui/postcss.config.mjs": [],
+    "ui/tailwind.config.ts": [],
+    "ui/tsconfig.json": []
+  }
+}

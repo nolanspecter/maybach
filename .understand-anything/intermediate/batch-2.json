@@ -1,0 +1,262 @@
+{
+  "nodes": [
+    {
+      "id": "file:agents/vda.py",
+      "type": "file",
+      "name": "vda.py",
+      "filePath": "agents/vda.py",
+      "summary": "Implements the Virtual Data Analyst (vDA) agent, assembling a LangGraph ReAct agent with code execution and SQL tools, and exposing a `run` entry point invoked by the orchestrator.",
+      "tags": ["service", "agent", "data-analysis", "langgraph"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:agents/vds.py",
+      "type": "file",
+      "name": "vds.py",
+      "filePath": "agents/vds.py",
+      "summary": "Implements the Virtual Data Scientist (vDS) agent, assembling a LangGraph ReAct agent equipped with code execution, SQL, and research tools, and exposing a `run` entry point for orchestrator dispatch.",
+      "tags": ["service", "agent", "data-science", "langgraph"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tools/code_tools.py",
+      "type": "file",
+      "name": "code_tools.py",
+      "filePath": "tools/code_tools.py",
+      "summary": "Provides LangChain tool-decorated functions for sandboxed Python and Bash code execution via subprocess, capturing stdout/stderr and returning formatted results to agent callers.",
+      "tags": ["utility", "tool", "code-execution", "subprocess"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tools/research_tools.py",
+      "type": "file",
+      "name": "research_tools.py",
+      "filePath": "tools/research_tools.py",
+      "summary": "Provides LangChain tool-decorated helper functions for the vPM and vDS agents to format and present research outputs — documents, task lists, and finding summaries.",
+      "tags": ["utility", "tool", "formatting", "research"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tools/sql_tools.py",
+      "type": "file",
+      "name": "sql_tools.py",
+      "filePath": "tools/sql_tools.py",
+      "summary": "Provides LangChain tool-decorated functions for SQLite database interaction — executing queries, listing tables, and describing table schemas — used by data-focused agents.",
+      "tags": ["utility", "tool", "database", "sql"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:tools/code_tools.py:run_python",
+      "type": "function",
+      "name": "run_python",
+      "filePath": "tools/code_tools.py",
+      "lineRange": [8, 30],
+      "summary": "Writes Python code to a named temporary file, executes it in a subprocess, and returns formatted stdout/stderr output; cleans up the temp file afterwards.",
+      "tags": ["utility", "code-execution", "subprocess", "tool"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:tools/code_tools.py:run_bash",
+      "type": "function",
+      "name": "run_bash",
+      "filePath": "tools/code_tools.py",
+      "lineRange": [34, 52],
+      "summary": "Executes an arbitrary shell command via subprocess with a configurable timeout and returns formatted stdout/stderr, providing agents a sandboxed Bash execution capability.",
+      "tags": ["utility", "code-execution", "subprocess", "tool"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:tools/sql_tools.py:run_sql",
+      "type": "function",
+      "name": "run_sql",
+      "filePath": "tools/sql_tools.py",
+      "lineRange": [6, 30],
+      "summary": "Connects to a SQLite database, executes a SQL query, and returns results formatted as a pipe-delimited table with column headers; handles both DML and SELECT statements.",
+      "tags": ["utility", "database", "sql", "tool"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:tools/sql_tools.py:list_tables",
+      "type": "function",
+      "name": "list_tables",
+      "filePath": "tools/sql_tools.py",
+      "lineRange": [34, 44],
+      "summary": "Queries the SQLite sqlite_master catalog to return a comma-separated list of all user tables in the specified database.",
+      "tags": ["utility", "database", "sql", "tool"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:tools/sql_tools.py:describe_table",
+      "type": "function",
+      "name": "describe_table",
+      "filePath": "tools/sql_tools.py",
+      "lineRange": [48, 61],
+      "summary": "Uses PRAGMA table_info to retrieve and format column metadata (name, type, nullable, default, primary key) for a named SQLite table.",
+      "tags": ["utility", "database", "sql", "tool"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:agents/vda.py",
+      "target": "file:llm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vda.py",
+      "target": "file:tools/code_tools.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vda.py",
+      "target": "file:tools/sql_tools.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vds.py",
+      "target": "file:llm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vds.py",
+      "target": "file:tools/code_tools.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vds.py",
+      "target": "file:tools/research_tools.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vds.py",
+      "target": "file:tools/sql_tools.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:tools/code_tools.py",
+      "target": "function:tools/code_tools.py:run_python",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tools/code_tools.py",
+      "target": "function:tools/code_tools.py:run_bash",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tools/code_tools.py",
+      "target": "function:tools/code_tools.py:run_python",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tools/code_tools.py",
+      "target": "function:tools/code_tools.py:run_bash",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tools/sql_tools.py",
+      "target": "function:tools/sql_tools.py:run_sql",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tools/sql_tools.py",
+      "target": "function:tools/sql_tools.py:list_tables",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tools/sql_tools.py",
+      "target": "function:tools/sql_tools.py:describe_table",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tools/sql_tools.py",
+      "target": "function:tools/sql_tools.py:run_sql",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tools/sql_tools.py",
+      "target": "function:tools/sql_tools.py:list_tables",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:tools/sql_tools.py",
+      "target": "function:tools/sql_tools.py:describe_table",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vda.py",
+      "target": "function:tools/code_tools.py:run_python",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vda.py",
+      "target": "function:tools/sql_tools.py:run_sql",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vds.py",
+      "target": "function:tools/code_tools.py:run_python",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vds.py",
+      "target": "function:tools/sql_tools.py:run_sql",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vda.py",
+      "target": "function:llm.py:get_llm",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vds.py",
+      "target": "function:llm.py:get_llm",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

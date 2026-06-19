@@ -1,0 +1,687 @@
+{
+  "nodes": [
+    {
+      "id": "file:agents/vpm.py",
+      "type": "file",
+      "name": "vpm.py",
+      "filePath": "agents/vpm.py",
+      "summary": "Implements the Virtual Product Manager (vPM) agent using LangGraph's ReAct pattern. Equipped with document-writing and task-list tools, it converts ambiguous requests into structured PRDs, specs, and roadmaps.",
+      "tags": ["service", "agent", "langgraph", "product-management"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:agents/vpm.py:run",
+      "type": "function",
+      "name": "run",
+      "filePath": "agents/vpm.py",
+      "lineRange": [19, 21],
+      "summary": "Invokes the vPM ReAct agent with a task string and returns the final message content as a string.",
+      "tags": ["service", "agent", "entry-point"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:agents/vswe.py",
+      "type": "file",
+      "name": "vswe.py",
+      "filePath": "agents/vswe.py",
+      "summary": "Implements the Virtual Software Engineer (vSWE) agent using LangGraph's ReAct pattern. Equipped with Python and Bash execution tools, it writes and verifies working code for engineering tasks.",
+      "tags": ["service", "agent", "langgraph", "code-execution"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:agents/vswe.py:run",
+      "type": "function",
+      "name": "run",
+      "filePath": "agents/vswe.py",
+      "lineRange": [19, 21],
+      "summary": "Invokes the vSWE ReAct agent with a task string and returns the final message content as a string.",
+      "tags": ["service", "agent", "entry-point"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:llm.py",
+      "type": "file",
+      "name": "llm.py",
+      "filePath": "llm.py",
+      "summary": "Provides a pluggable LLM factory that selects between AWS Bedrock and Ollama based on the LLM_PROVIDER environment variable, with graceful fallback logic when AWS credentials are absent.",
+      "tags": ["factory", "utility", "llm", "configuration"],
+      "complexity": "simple",
+      "languageNotes": "Uses lazy imports inside the factory function to avoid loading provider-specific packages when they are not needed at runtime."
+    },
+    {
+      "id": "function:llm.py:get_llm",
+      "type": "function",
+      "name": "get_llm",
+      "filePath": "llm.py",
+      "lineRange": [6, 32],
+      "summary": "Factory function that instantiates and returns the appropriate LangChain chat model (ChatBedrockConverse or ChatOllama) based on environment configuration, with automatic fallback from Bedrock to Ollama.",
+      "tags": ["factory", "utility", "llm"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:main.py",
+      "type": "file",
+      "name": "main.py",
+      "filePath": "main.py",
+      "summary": "CLI entry point that accepts a task string from command-line arguments, forwards it to the orchestrator's run function, and prints the result.",
+      "tags": ["entry-point", "cli", "script"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:orchestrator.py",
+      "type": "file",
+      "name": "orchestrator.py",
+      "filePath": "orchestrator.py",
+      "summary": "Core LangGraph supervisor orchestrating the four virtual employee agents. Uses an LLM-powered router to fan out tasks in parallel via the Send API, collect results through an aggregator, and loop back until work is complete.",
+      "tags": ["orchestration", "langgraph", "supervisor", "multi-agent"],
+      "complexity": "complex",
+      "languageNotes": "Employs LangGraph's Send API for dynamic parallel fan-out to worker nodes, with the aggregator acting as a synchronization barrier before looping back to the router."
+    },
+    {
+      "id": "class:orchestrator.py:OrchestratorState",
+      "type": "class",
+      "name": "OrchestratorState",
+      "filePath": "orchestrator.py",
+      "lineRange": [29, 31],
+      "summary": "Pydantic BaseModel defining the LangGraph state schema, holding the message history and a list of next worker names to dispatch.",
+      "tags": ["data-model", "state", "langgraph"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:orchestrator.py:RouterDecision",
+      "type": "class",
+      "name": "RouterDecision",
+      "filePath": "orchestrator.py",
+      "lineRange": [53, 55],
+      "summary": "Pydantic model representing the structured output of the router LLM, specifying which workers to dispatch and the reasoning behind the decision.",
+      "tags": ["data-model", "llm", "type-definition"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:orchestrator.py:router_node",
+      "type": "function",
+      "name": "router_node",
+      "filePath": "orchestrator.py",
+      "lineRange": [60, 66],
+      "summary": "LangGraph node that formats the current message history and queries the router LLM to decide which workers should handle the next step.",
+      "tags": ["orchestration", "langgraph", "supervisor"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:orchestrator.py:route_decision",
+      "type": "function",
+      "name": "route_decision",
+      "filePath": "orchestrator.py",
+      "lineRange": [69, 73],
+      "summary": "Conditional edge function that converts the router's worker list into LangGraph Send objects for parallel dispatch, or returns END when the router signals completion.",
+      "tags": ["orchestration", "langgraph", "routing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:orchestrator.py:_worker_node",
+      "type": "function",
+      "name": "_worker_node",
+      "filePath": "orchestrator.py",
+      "lineRange": [78, 88],
+      "summary": "Higher-order factory that creates a LangGraph worker node function for any given agent module, extracting the last human message and wrapping the agent result in a labeled AIMessage.",
+      "tags": ["factory", "orchestration", "langgraph"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:orchestrator.py:aggregator_node",
+      "type": "function",
+      "name": "aggregator_node",
+      "filePath": "orchestrator.py",
+      "lineRange": [99, 101],
+      "summary": "LangGraph join node that acts as a synchronization barrier after parallel worker execution, passing accumulated state back to the router for the next decision cycle.",
+      "tags": ["orchestration", "langgraph", "aggregation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:orchestrator.py:build_graph",
+      "type": "function",
+      "name": "build_graph",
+      "filePath": "orchestrator.py",
+      "lineRange": [106, 127],
+      "summary": "Constructs and compiles the LangGraph StateGraph wiring the router, four worker nodes, and aggregator with conditional fan-out edges and a loop back from aggregator to router.",
+      "tags": ["factory", "langgraph", "graph-construction"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:orchestrator.py:run",
+      "type": "function",
+      "name": "run",
+      "filePath": "orchestrator.py",
+      "lineRange": [135, 141],
+      "summary": "Public API that runs a task string through the compiled LangGraph, extracts the last AIMessage from the final state, and returns it as a plain string.",
+      "tags": ["entry-point", "api", "orchestration"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:server.py",
+      "type": "file",
+      "name": "server.py",
+      "filePath": "server.py",
+      "summary": "FastAPI application exposing the orchestrator and individual agent workers as HTTP endpoints, with CORS middleware configured for the Next.js frontend and Pydantic request/response models.",
+      "tags": ["api-handler", "service", "fastapi", "http"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:server.py:TaskRequest",
+      "type": "class",
+      "name": "TaskRequest",
+      "filePath": "server.py",
+      "lineRange": [27, 28],
+      "summary": "Pydantic request model for agent and orchestrator endpoints, containing a single task string field.",
+      "tags": ["data-model", "api-handler", "type-definition"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server.py:TaskResponse",
+      "type": "class",
+      "name": "TaskResponse",
+      "filePath": "server.py",
+      "lineRange": [31, 33],
+      "summary": "Pydantic response model for individual agent endpoints, returning the agent label and its result string.",
+      "tags": ["data-model", "api-handler", "type-definition"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:server.py:OrchestrateResponse",
+      "type": "class",
+      "name": "OrchestrateResponse",
+      "filePath": "server.py",
+      "lineRange": [36, 39],
+      "summary": "Pydantic response model for the orchestrate endpoint, exposing the list of agents that ran, the stripped result text, and the raw labeled output.",
+      "tags": ["data-model", "api-handler", "type-definition"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server.py:health",
+      "type": "function",
+      "name": "health",
+      "filePath": "server.py",
+      "lineRange": [43, 44],
+      "summary": "Simple GET /health endpoint that returns a status ok JSON response for liveness checks.",
+      "tags": ["api-handler", "health-check"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:server.py:orchestrate",
+      "type": "function",
+      "name": "orchestrate",
+      "filePath": "server.py",
+      "lineRange": [48, 59],
+      "summary": "POST /orchestrate endpoint that forwards a task to the orchestrator, parses agent labels from the result, strips label prefixes, and returns a structured OrchestrateResponse.",
+      "tags": ["api-handler", "orchestration", "endpoint"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:server.py:_make_route",
+      "type": "function",
+      "name": "_make_route",
+      "filePath": "server.py",
+      "lineRange": [62, 70],
+      "summary": "Factory function that generates a typed async FastAPI route handler for a given agent module, wrapping agent invocation in error handling and returning a TaskResponse.",
+      "tags": ["factory", "api-handler", "utility"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:agents/vpm.py",
+      "target": "function:agents/vpm.py:run",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:agents/vpm.py",
+      "target": "function:agents/vpm.py:run",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vpm.py",
+      "target": "file:llm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vpm.py",
+      "target": "file:tools/research_tools.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vpm.py",
+      "target": "function:tools/research_tools.py:write_document",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vpm.py",
+      "target": "function:tools/research_tools.py:create_task_list",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vpm.py",
+      "target": "function:tools/research_tools.py:summarize_findings",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vswe.py",
+      "target": "function:agents/vswe.py:run",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:agents/vswe.py",
+      "target": "function:agents/vswe.py:run",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vswe.py",
+      "target": "file:llm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vswe.py",
+      "target": "file:tools/code_tools.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:agents/vswe.py",
+      "target": "function:tools/code_tools.py:run_python",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:agents/vswe.py",
+      "target": "function:tools/code_tools.py:run_bash",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:llm.py",
+      "target": "function:llm.py:get_llm",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:llm.py",
+      "target": "function:llm.py:get_llm",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:orchestrator.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:main.py",
+      "target": "function:orchestrator.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "class:orchestrator.py:OrchestratorState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "class:orchestrator.py:OrchestratorState",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "class:orchestrator.py:RouterDecision",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "class:orchestrator.py:RouterDecision",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:router_node",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:router_node",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:route_decision",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:route_decision",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:_worker_node",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:_worker_node",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:aggregator_node",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:aggregator_node",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:build_graph",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:build_graph",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:run",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:orchestrator.py:run",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "file:agents/vda.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "file:agents/vds.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "file:agents/vpm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "file:agents/vswe.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "file:llm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:agents/vda.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:agents/vds.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:agents/vpm.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:agents/vswe.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:orchestrator.py",
+      "target": "function:llm.py:get_llm",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server.py",
+      "target": "class:server.py:TaskRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:server.py",
+      "target": "class:server.py:TaskRequest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server.py",
+      "target": "class:server.py:TaskResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:server.py",
+      "target": "class:server.py:TaskResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server.py",
+      "target": "class:server.py:OrchestrateResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:server.py",
+      "target": "class:server.py:OrchestrateResponse",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server.py",
+      "target": "function:server.py:health",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:server.py",
+      "target": "function:server.py:health",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server.py",
+      "target": "function:server.py:orchestrate",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:server.py",
+      "target": "function:server.py:orchestrate",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server.py",
+      "target": "function:server.py:_make_route",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:server.py",
+      "target": "function:server.py:_make_route",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:server.py",
+      "target": "file:agents/vda.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server.py",
+      "target": "file:agents/vds.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server.py",
+      "target": "file:agents/vpm.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server.py",
+      "target": "file:agents/vswe.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:server.py",
+      "target": "file:orchestrator.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "function:server.py:orchestrate",
+      "target": "function:orchestrator.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:server.py:_make_route",
+      "target": "function:agents/vda.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:server.py:_make_route",
+      "target": "function:agents/vds.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:server.py:_make_route",
+      "target": "function:agents/vpm.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:server.py:_make_route",
+      "target": "function:agents/vswe.py:run",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    }
+  ]
+}

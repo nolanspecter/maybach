@@ -1,0 +1,10 @@
+{
+  "projectRoot": "/Users/nolanspecter/Desktop/maybach",
+  "batchFiles": [
+    {"path": "ui/app/page.tsx", "language": "typescript", "sizeLines": 176, "fileCategory": "code"},
+    {"path": "ui/components/AgentBadge.tsx", "language": "typescript", "sizeLines": 19, "fileCategory": "code"},
+    {"path": "ui/components/Message.tsx", "language": "typescript", "sizeLines": 55, "fileCategory": "code"},
+    {"path": "ui/components/ThinkingDots.tsx", "language": "typescript", "sizeLines": 17, "fileCategory": "code"}
+  ],
+  "batchImportData": {"ui/app/page.tsx": ["ui/components/Message.tsx", "ui/components/ThinkingDots.tsx"], "ui/components/AgentBadge.tsx": [], "ui/components/Message.tsx": ["ui/components/AgentBadge.tsx"], "ui/components/ThinkingDots.tsx": []}
+}

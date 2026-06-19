@@ -1,0 +1,324 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 4,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "ui/app/page.tsx",
+      "language": "typescript",
+      "fileCategory": "code",
+      "totalLines": 176,
+      "nonEmptyLines": 160,
+      "functions": [
+        {
+          "name": "Home",
+          "startLine": 14,
+          "endLine": 176,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "Home",
+          "line": 14,
+          "isDefault": true
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "Home",
+          "callee": "useState",
+          "lineNumber": 15
+        },
+        {
+          "caller": "Home",
+          "callee": "useState",
+          "lineNumber": 16
+        },
+        {
+          "caller": "Home",
+          "callee": "useState",
+          "lineNumber": 17
+        },
+        {
+          "caller": "Home",
+          "callee": "useRef",
+          "lineNumber": 18
+        },
+        {
+          "caller": "Home",
+          "callee": "useRef",
+          "lineNumber": 19
+        },
+        {
+          "caller": "Home",
+          "callee": "useEffect",
+          "lineNumber": 21
+        },
+        {
+          "caller": "Home",
+          "callee": "bottomRef.current?.scrollIntoView",
+          "lineNumber": 22
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "task.trim",
+          "lineNumber": 26
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now().toString",
+          "lineNumber": 29
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now",
+          "lineNumber": 29
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "setMessages",
+          "lineNumber": 33
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "setInput",
+          "lineNumber": 34
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "setLoading",
+          "lineNumber": 35
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "fetch",
+          "lineNumber": 38
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "JSON.stringify",
+          "lineNumber": 41
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "res.json",
+          "lineNumber": 43
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "setMessages",
+          "lineNumber": 46
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now().toString",
+          "lineNumber": 48
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now",
+          "lineNumber": 48
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "setMessages",
+          "lineNumber": 51
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now().toString",
+          "lineNumber": 54
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now",
+          "lineNumber": 54
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "setMessages",
+          "lineNumber": 62
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now().toString",
+          "lineNumber": 65
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "Date.now",
+          "lineNumber": 65
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "setLoading",
+          "lineNumber": 71
+        },
+        {
+          "caller": "sendMessage",
+          "callee": "inputRef.current?.focus",
+          "lineNumber": 72
+        },
+        {
+          "caller": "handleSubmit",
+          "callee": "e.preventDefault",
+          "lineNumber": 77
+        },
+        {
+          "caller": "handleSubmit",
+          "callee": "sendMessage",
+          "lineNumber": 78
+        },
+        {
+          "caller": "handleKeyDown",
+          "callee": "e.preventDefault",
+          "lineNumber": 83
+        },
+        {
+          "caller": "handleKeyDown",
+          "callee": "sendMessage",
+          "lineNumber": 84
+        },
+        {
+          "caller": "Home",
+          "callee": "[\"vDA\", \"vPM\", \"vSWE\", \"vDS\"].map",
+          "lineNumber": 101
+        },
+        {
+          "caller": "Home",
+          "callee": "SUGGESTIONS.map",
+          "lineNumber": 121
+        },
+        {
+          "caller": "Home",
+          "callee": "sendMessage",
+          "lineNumber": 124
+        },
+        {
+          "caller": "Home",
+          "callee": "messages.map",
+          "lineNumber": 134
+        },
+        {
+          "caller": "Home",
+          "callee": "setInput",
+          "lineNumber": 150
+        },
+        {
+          "caller": "Home",
+          "callee": "input.trim",
+          "lineNumber": 161
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "ui/components/AgentBadge.tsx",
+      "language": "typescript",
+      "fileCategory": "code",
+      "totalLines": 19,
+      "nonEmptyLines": 18,
+      "functions": [
+        {
+          "name": "AgentBadge",
+          "startLine": 9,
+          "endLine": 19,
+          "params": [
+            "{ agent }"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "AgentBadge",
+          "line": 9,
+          "isDefault": false
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "ui/components/Message.tsx",
+      "language": "typescript",
+      "fileCategory": "code",
+      "totalLines": 55,
+      "nonEmptyLines": 49,
+      "functions": [
+        {
+          "name": "Message",
+          "startLine": 16,
+          "endLine": 55,
+          "params": [
+            "{ msg }"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "Message",
+          "line": 16,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "Message",
+          "callee": "msg.agents.map",
+          "lineNumber": 42
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "ui/components/ThinkingDots.tsx",
+      "language": "typescript",
+      "fileCategory": "code",
+      "totalLines": 17,
+      "nonEmptyLines": 17,
+      "functions": [
+        {
+          "name": "ThinkingDots",
+          "startLine": 1,
+          "endLine": 17,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "ThinkingDots",
+          "line": 1,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "ThinkingDots",
+          "callee": "[0, 1, 2].map",
+          "lineNumber": 6
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    }
+  ]
+}

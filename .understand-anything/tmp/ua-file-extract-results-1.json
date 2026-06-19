@@ -1,0 +1,620 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 6,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "agents/vpm.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 21,
+      "nonEmptyLines": 15,
+      "functions": [
+        {
+          "name": "run",
+          "startLine": 19,
+          "endLine": 21,
+          "params": [
+            "task",
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "run",
+          "line": 19,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "run",
+          "callee": "agent.invoke",
+          "lineNumber": 20
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "agents/vswe.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 21,
+      "nonEmptyLines": 15,
+      "functions": [
+        {
+          "name": "run",
+          "startLine": 19,
+          "endLine": 21,
+          "params": [
+            "task",
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "run",
+          "line": 19,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "run",
+          "callee": "agent.invoke",
+          "lineNumber": 20
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "llm.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 35,
+      "nonEmptyLines": 28,
+      "functions": [
+        {
+          "name": "get_llm",
+          "startLine": 6,
+          "endLine": 32,
+          "params": [
+            "model"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "get_llm",
+          "line": 6,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "get_llm",
+          "callee": "os.getenv(\"LLM_PROVIDER\", \"bedrock\").lower",
+          "lineNumber": 7
+        },
+        {
+          "caller": "get_llm",
+          "callee": "os.getenv",
+          "lineNumber": 7
+        },
+        {
+          "caller": "get_llm",
+          "callee": "os.getenv",
+          "lineNumber": 10
+        },
+        {
+          "caller": "get_llm",
+          "callee": "warnings.warn",
+          "lineNumber": 11
+        },
+        {
+          "caller": "get_llm",
+          "callee": "ChatBedrockConverse",
+          "lineNumber": 19
+        },
+        {
+          "caller": "get_llm",
+          "callee": "os.getenv",
+          "lineNumber": 20
+        },
+        {
+          "caller": "get_llm",
+          "callee": "ChatOllama",
+          "lineNumber": 25
+        },
+        {
+          "caller": "get_llm",
+          "callee": "os.getenv",
+          "lineNumber": 26
+        },
+        {
+          "caller": "get_llm",
+          "callee": "os.getenv",
+          "lineNumber": 27
+        },
+        {
+          "caller": "get_llm",
+          "callee": "ValueError",
+          "lineNumber": 30
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "main.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 18,
+      "nonEmptyLines": 14,
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "orchestrator.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 141,
+      "nonEmptyLines": 100,
+      "functions": [
+        {
+          "name": "router_node",
+          "startLine": 60,
+          "endLine": 66,
+          "params": [
+            "state"
+          ]
+        },
+        {
+          "name": "route_decision",
+          "startLine": 69,
+          "endLine": 73,
+          "params": [
+            "state"
+          ]
+        },
+        {
+          "name": "_worker_node",
+          "startLine": 78,
+          "endLine": 88,
+          "params": [
+            "agent_module",
+            "label"
+          ]
+        },
+        {
+          "name": "aggregator_node",
+          "startLine": 99,
+          "endLine": 101,
+          "params": [
+            "state"
+          ]
+        },
+        {
+          "name": "build_graph",
+          "startLine": 106,
+          "endLine": 127,
+          "params": []
+        },
+        {
+          "name": "run",
+          "startLine": 135,
+          "endLine": 141,
+          "params": [
+            "task"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "OrchestratorState",
+          "startLine": 29,
+          "endLine": 31,
+          "methods": [],
+          "properties": [
+            "messages",
+            "next_workers"
+          ]
+        },
+        {
+          "name": "RouterDecision",
+          "startLine": 53,
+          "endLine": 55,
+          "methods": [],
+          "properties": [
+            "workers",
+            "reasoning"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "OrchestratorState",
+          "line": 29,
+          "isDefault": false
+        },
+        {
+          "name": "RouterDecision",
+          "line": 53,
+          "isDefault": false
+        },
+        {
+          "name": "router_node",
+          "line": 60,
+          "isDefault": false
+        },
+        {
+          "name": "route_decision",
+          "line": 69,
+          "isDefault": false
+        },
+        {
+          "name": "_worker_node",
+          "line": 78,
+          "isDefault": false
+        },
+        {
+          "name": "aggregator_node",
+          "line": 99,
+          "isDefault": false
+        },
+        {
+          "name": "build_graph",
+          "line": 106,
+          "isDefault": false
+        },
+        {
+          "name": "run",
+          "line": 135,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "router_node",
+          "callee": "isinstance",
+          "lineNumber": 62
+        },
+        {
+          "caller": "router_node",
+          "callee": "_router_llm.invoke",
+          "lineNumber": 65
+        },
+        {
+          "caller": "router_node",
+          "callee": "OrchestratorState",
+          "lineNumber": 66
+        },
+        {
+          "caller": "route_decision",
+          "callee": "Send",
+          "lineNumber": 73
+        },
+        {
+          "caller": "node",
+          "callee": "next",
+          "lineNumber": 80
+        },
+        {
+          "caller": "node",
+          "callee": "reversed",
+          "lineNumber": 81
+        },
+        {
+          "caller": "node",
+          "callee": "isinstance",
+          "lineNumber": 81
+        },
+        {
+          "caller": "node",
+          "callee": "agent_module.run",
+          "lineNumber": 84
+        },
+        {
+          "caller": "node",
+          "callee": "AIMessage",
+          "lineNumber": 85
+        },
+        {
+          "caller": "node",
+          "callee": "OrchestratorState",
+          "lineNumber": 86
+        },
+        {
+          "caller": "aggregator_node",
+          "callee": "OrchestratorState",
+          "lineNumber": 101
+        },
+        {
+          "caller": "build_graph",
+          "callee": "StateGraph",
+          "lineNumber": 107
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_node",
+          "lineNumber": 109
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_node",
+          "lineNumber": 110
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_node",
+          "lineNumber": 111
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_node",
+          "lineNumber": 112
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_node",
+          "lineNumber": 113
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_node",
+          "lineNumber": 114
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_edge",
+          "lineNumber": 116
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_conditional_edges",
+          "lineNumber": 119
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_edge",
+          "lineNumber": 123
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.add_edge",
+          "lineNumber": 125
+        },
+        {
+          "caller": "build_graph",
+          "callee": "g.compile",
+          "lineNumber": 127
+        },
+        {
+          "caller": "run",
+          "callee": "OrchestratorState",
+          "lineNumber": 136
+        },
+        {
+          "caller": "run",
+          "callee": "HumanMessage",
+          "lineNumber": 136
+        },
+        {
+          "caller": "run",
+          "callee": "graph.invoke",
+          "lineNumber": 137
+        },
+        {
+          "caller": "run",
+          "callee": "reversed",
+          "lineNumber": 138
+        },
+        {
+          "caller": "run",
+          "callee": "isinstance",
+          "lineNumber": 139
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 8,
+        "functionCount": 6,
+        "classCount": 2
+      }
+    },
+    {
+      "path": "server.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 76,
+      "nonEmptyLines": 58,
+      "functions": [
+        {
+          "name": "health",
+          "startLine": 43,
+          "endLine": 44,
+          "params": []
+        },
+        {
+          "name": "orchestrate",
+          "startLine": 48,
+          "endLine": 59,
+          "params": [
+            "req"
+          ]
+        },
+        {
+          "name": "_make_route",
+          "startLine": 62,
+          "endLine": 70,
+          "params": [
+            "agent_module",
+            "label"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "TaskRequest",
+          "startLine": 27,
+          "endLine": 28,
+          "methods": [],
+          "properties": [
+            "task"
+          ]
+        },
+        {
+          "name": "TaskResponse",
+          "startLine": 31,
+          "endLine": 33,
+          "methods": [],
+          "properties": [
+            "agent",
+            "result"
+          ]
+        },
+        {
+          "name": "OrchestrateResponse",
+          "startLine": 36,
+          "endLine": 39,
+          "methods": [],
+          "properties": [
+            "agents",
+            "result",
+            "raw"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "TaskRequest",
+          "line": 27,
+          "isDefault": false
+        },
+        {
+          "name": "TaskResponse",
+          "line": 31,
+          "isDefault": false
+        },
+        {
+          "name": "OrchestrateResponse",
+          "line": 36,
+          "isDefault": false
+        },
+        {
+          "name": "health",
+          "line": 42,
+          "isDefault": false
+        },
+        {
+          "name": "orchestrate",
+          "line": 47,
+          "isDefault": false
+        },
+        {
+          "name": "_make_route",
+          "line": 62,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "orchestrate",
+          "callee": "orchestrator.run",
+          "lineNumber": 50
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "re.findall",
+          "lineNumber": 52
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "list",
+          "lineNumber": 53
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "dict.fromkeys",
+          "lineNumber": 53
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "re.match",
+          "lineNumber": 55
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "match.end",
+          "lineNumber": 56
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "OrchestrateResponse",
+          "lineNumber": 57
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "HTTPException",
+          "lineNumber": 59
+        },
+        {
+          "caller": "orchestrate",
+          "callee": "str",
+          "lineNumber": 59
+        },
+        {
+          "caller": "handler",
+          "callee": "agent_module.run",
+          "lineNumber": 65
+        },
+        {
+          "caller": "handler",
+          "callee": "TaskResponse",
+          "lineNumber": 66
+        },
+        {
+          "caller": "handler",
+          "callee": "HTTPException",
+          "lineNumber": 68
+        },
+        {
+          "caller": "handler",
+          "callee": "str",
+          "lineNumber": 68
+        },
+        {
+          "caller": "_make_route",
+          "callee": "label.lower",
+          "lineNumber": 69
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 6,
+        "functionCount": 3,
+        "classCount": 3
+      }
+    }
+  ]
+}
