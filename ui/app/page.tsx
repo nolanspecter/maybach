@@ -28,7 +28,7 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, liveEvents]);
+  }, [messages, liveEvents, loading]);
 
   async function resetConversation() {
     await fetch("/api/conversation", { method: "DELETE" });
