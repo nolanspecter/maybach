@@ -14,14 +14,20 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ task }),
+      // @ts-expect-error — duplex required for streaming body in Node fetch
+      duplex: "half",
     });
 
-    // Pipe the SSE stream straight through to the browser
+    if (!backendRes.ok || !backendRes.body) {
+      const errEvent = `data: ${JSON.stringify({ type: "error", message: "Backend error" })}\n\n`;
+      return new Response(errEvent, { headers: { "Content-Type": "text/event-stream" } });
+    }
+
     return new Response(backendRes.body, {
       headers: {
         "Content-Type":  "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection":    "keep-alive",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
       },
     });
   } catch (err) {

@@ -11,19 +11,18 @@ export type StreamEvent =
   | { type: "done";  result: string; agents: string[] }
   | { type: "error"; message: string };
 
+// Muted warm tones — readable on the dark warm background without popping too hard
 const AGENT_COLOR: Record<string, string> = {
-  vDA:  "#6B9FD4",
-  vPM:  "#A78BDB",
-  vSWE: "#6BBF8A",
-  vDS:  "#D4976B",
+  vDA:  "#7FA8C9",
+  vPM:  "#9B87C4",
+  vSWE: "#74B08A",
+  vDS:  "#C49A6C",
 };
 
-function dot(color: string) {
+// Pulsing dot indicator for active steps
+function Pulse() {
   return (
-    <span
-      className="inline-block w-1.5 h-1.5 rounded-full flex-none mt-[3px]"
-      style={{ background: color }}
-    />
+    <span className="flex-none mt-[4px] w-1.5 h-1.5 rounded-full bg-gold-dim animate-pulse" />
   );
 }
 
@@ -31,33 +30,35 @@ export function EventLog({ events }: { events: StreamEvent[] }) {
   if (events.length === 0) return null;
 
   return (
-    <div className="space-y-1 py-1">
+    <div className="space-y-1.5 py-0.5">
       {events.map((e, i) => {
         switch (e.type) {
+
           case "routing":
             return (
-              <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-zinc-500">
-                <span className="mt-[3px] animate-spin text-zinc-600">◌</span>
+              <div key={i} className="flex items-start gap-2.5 font-mono text-[10px] tracking-wide" style={{ color: "#5A5652" }}>
+                <Pulse />
                 <span>routing</span>
               </div>
             );
 
           case "agent_start":
             return (
-              <div key={i} className="flex items-start gap-2 text-[11px] font-mono" style={{ color: AGENT_COLOR[e.agent] ?? "#888" }}>
-                {dot(AGENT_COLOR[e.agent] ?? "#888")}
-                <span className="font-semibold">{e.agent}</span>
-                <span className="text-zinc-600">started</span>
+              <div key={i} className="flex items-start gap-2.5 font-mono text-[10px] tracking-wide" style={{ color: AGENT_COLOR[e.agent] ?? "#8A8782" }}>
+                <span className="flex-none mt-[3px] w-1.5 h-1.5 rounded-full" style={{ background: AGENT_COLOR[e.agent] ?? "#8A8782" }} />
+                <span className="uppercase tracking-[0.12em]">{e.agent}</span>
+                <span style={{ color: "#3A3A36" }}>·</span>
+                <span style={{ color: "#5A5652" }}>started</span>
               </div>
             );
 
           case "tool_call":
             return (
-              <div key={i} className="flex items-start gap-2 pl-4 text-[11px] font-mono text-zinc-500">
-                <span className="text-zinc-700 flex-none">↳</span>
-                <span className="text-zinc-400">{e.tool}</span>
+              <div key={i} className="flex items-start gap-2 pl-5 font-mono text-[10px]" style={{ color: "#4A4A46" }}>
+                <span className="flex-none" style={{ color: "#3A3A36" }}>↳</span>
+                <span style={{ color: "#6A6A66" }}>{e.tool}</span>
                 {e.preview && (
-                  <span className="text-zinc-700 truncate max-w-[240px]">
+                  <span className="truncate max-w-[260px]" style={{ color: "#3A3A36" }}>
                     {e.preview}
                   </span>
                 )}
@@ -66,7 +67,7 @@ export function EventLog({ events }: { events: StreamEvent[] }) {
 
           case "tool_done":
             return (
-              <div key={i} className="flex items-start gap-2 pl-4 text-[11px] font-mono text-zinc-700">
+              <div key={i} className="flex items-start gap-2 pl-5 font-mono text-[10px]" style={{ color: "#3A3A36" }}>
                 <span className="flex-none">✓</span>
                 <span>{e.tool}</span>
               </div>
@@ -74,34 +75,34 @@ export function EventLog({ events }: { events: StreamEvent[] }) {
 
           case "agent_done":
             return (
-              <div key={i} className="flex items-start gap-2 text-[11px] font-mono" style={{ color: AGENT_COLOR[e.agent] ?? "#888" }}>
+              <div key={i} className="flex items-start gap-2.5 font-mono text-[10px]" style={{ color: AGENT_COLOR[e.agent] ?? "#8A8782" }}>
                 <span className="flex-none mt-[1px]">✓</span>
-                <span className="font-semibold">{e.agent}</span>
+                <span className="uppercase tracking-[0.12em]">{e.agent}</span>
                 {e.file && (
-                  <span className="text-zinc-600 truncate">→ {e.file}</span>
+                  <span className="truncate" style={{ color: "#3A3A36" }}>→ {e.file}</span>
                 )}
               </div>
             );
 
           case "summarizing":
             return (
-              <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-zinc-500">
-                <span className="mt-[3px] animate-spin text-zinc-600">◌</span>
-                <span>synthesizing results</span>
+              <div key={i} className="flex items-start gap-2.5 font-mono text-[10px] tracking-wide" style={{ color: "#5A5652" }}>
+                <Pulse />
+                <span>synthesizing</span>
               </div>
             );
 
           case "direct":
             return (
-              <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-zinc-500">
-                <span className="mt-[3px]">◎</span>
-                <span>responding directly</span>
+              <div key={i} className="flex items-start gap-2.5 font-mono text-[10px]" style={{ color: "#5A5652" }}>
+                <span className="flex-none mt-[2px] w-1.5 h-1.5 rounded-full border border-current" />
+                <span>responding</span>
               </div>
             );
 
           case "error":
             return (
-              <div key={i} className="flex items-start gap-2 text-[11px] font-mono text-red-500">
+              <div key={i} className="flex items-start gap-2 font-mono text-[10px]" style={{ color: "#8B4040" }}>
                 <span>✗</span>
                 <span>{e.message}</span>
               </div>

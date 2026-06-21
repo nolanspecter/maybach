@@ -6,7 +6,7 @@ Tools available:
   run_sql           — pull raw data before analysis
   list_tables       — discover available data sources
   summarize_findings — compile results into a structured narrative
-  write_file        — save models, results, or reports to shared workspace
+  write_file        — save intermediate results to avoid context loss (cleaned up after run)
   read_file         — read datasets or specs other agents wrote
   list_files        — see what's in the shared workspace
 """
@@ -32,8 +32,18 @@ agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 
 def run(task: str, config: dict | None = None) -> str:
+    ws = _workspace()
+    before = set(ws.iterdir())
+
     result = agent.invoke({"messages": [("human", task)]}, config=config)
-    content = result["messages"][-1].content
+    raw = result["messages"][-1].content
+    content = raw if isinstance(raw, str) else str(raw)
+
     filename = f"vds_{uuid.uuid4().hex[:8]}.md"
-    (_workspace() / filename).write_text(content, encoding="utf-8")
+    final = ws / filename
+    final.write_text(content, encoding="utf-8")
+
+    for p in set(ws.iterdir()) - before - {final}:
+        p.unlink(missing_ok=True)
+
     return f"workspace/{filename}"
