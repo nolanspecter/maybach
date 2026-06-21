@@ -29,6 +29,7 @@ import agents.vpm as vpm_agent
 import agents.vds as vds_agent
 import orchestrator
 from orchestrator import OrchestratorState
+from langchain_core.messages import BaseMessage
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +48,9 @@ app.add_middleware(
 )
 
 WORKER_NODES = {"vDA", "vPM", "vSWE", "vDS"}
+
+# Single-session conversation memory — persists across requests until reset
+_history: list[BaseMessage] = []
 
 
 class TaskRequest(BaseModel):
@@ -73,11 +77,22 @@ def health():
     return {"status": "ok"}
 
 
+@app.delete("/conversation")
+def reset_conversation():
+    """Clear the in-memory conversation history."""
+    global _history
+    _history = []
+    log.info("conversation  reset")
+    return {"status": "cleared"}
+
+
 @app.post("/orchestrate", response_model=OrchestrateResponse)
 async def orchestrate_endpoint(req: TaskRequest) -> OrchestrateResponse:
-    log.info("orchestrate  task=%r", req.task[:80])
+    global _history
+    log.info("orchestrate  task=%r  history_len=%d", req.task[:80], len(_history))
     try:
-        raw = orchestrator.run(req.task)
+        raw, updated = orchestrator.run(req.task, history=_history)
+        _history = updated
         all_labels = re.findall(r"\[(\w+)\]", raw)
         agents = list(dict.fromkeys(all_labels)) or ["Maybach"]
         match = re.match(r"^\[(\w+)\]\s*", raw)
@@ -91,10 +106,15 @@ async def orchestrate_endpoint(req: TaskRequest) -> OrchestrateResponse:
 
 @app.post("/orchestrate/stream")
 async def orchestrate_stream(req: TaskRequest):
-    log.info("stream  task=%r", req.task[:80])
+    global _history
+    log.info("stream  task=%r  history_len=%d", req.task[:80], len(_history))
+    prior = list(_history)
 
     async def generate():
-        init_state = OrchestratorState(messages=[HumanMessage(content=req.task)])
+        global _history
+        init_state = OrchestratorState(
+            messages=prior + [HumanMessage(content=req.task)]
+        )
         ai_messages: list[str] = []
         active_agent: str = ""
 
@@ -137,17 +157,26 @@ async def orchestrate_stream(req: TaskRequest):
 
                 elif etype == "on_chain_end":
                     output = data.get("output", {})
+                    # output may be OrchestratorState (Pydantic) or dict depending on node
+                    if hasattr(output, "messages"):
+                        out_msgs = output.messages          # Pydantic model
+                    elif isinstance(output, dict):
+                        out_msgs = output.get("messages", [])
+                    else:
+                        out_msgs = []
+
                     if name in WORKER_NODES:
-                        msgs = output.get("messages", []) if isinstance(output, dict) else []
-                        file_path = msgs[-1].content if msgs else ""
+                        file_path = out_msgs[-1].content if out_msgs else ""
                         log.info("  → agent_done  agent=%s  file=%s", name, file_path)
                         yield _sse({"type": "agent_done", "agent": name, "file": file_path})
 
-                    if isinstance(output, dict):
-                        for msg in output.get("messages", []):
-                            c = getattr(msg, "content", "")
-                            if isinstance(c, str) and c and not c.startswith("workspace/"):
-                                ai_messages.append(c)
+                    if name == "router" and hasattr(output, "next_workers"):
+                        log.info("  → router decided  workers=%s", output.next_workers)
+
+                    for msg in out_msgs:
+                        c = getattr(msg, "content", "")
+                        if isinstance(c, str) and c and not c.startswith("workspace/"):
+                            ai_messages.append(c)
 
         except Exception as e:
             log.error("stream  graph error: %s\n%s", e, traceback.format_exc())
@@ -164,7 +193,13 @@ async def orchestrate_stream(req: TaskRequest):
         agents = list(dict.fromkeys(all_labels)) or ["Maybach"]
         clean = re.sub(r"^\[\w+\]\s*", "", result)
 
-        log.info("stream  done  agents=%s", agents)
+        # Persist conversation: prior history + this turn's human + final AI reply
+        from langchain_core.messages import AIMessage as _AI
+        _history = prior + [HumanMessage(content=req.task)]
+        if clean:
+            _history.append(_AI(content=clean))
+
+        log.info("stream  done  agents=%s  history_len=%d", agents, len(_history))
         yield _sse({"type": "done", "result": clean, "agents": agents})
 
     return StreamingResponse(generate(), media_type="text/event-stream")

@@ -91,13 +91,35 @@ def router_node(state: OrchestratorState) -> OrchestratorState:
     return OrchestratorState(messages=state.messages, next_workers=decision.workers)
 
 
+_WORKER_SET = {"vDA", "vPM", "vSWE", "vDS"}
+
+def _already_responded(state: OrchestratorState) -> set[str]:
+    """Workers whose [LABEL] reply already appears in message history."""
+    done: set[str] = set()
+    for m in state.messages:
+        if not isinstance(m, AIMessage):
+            continue
+        c = m.content if isinstance(m.content, str) else ""
+        match = re.match(r"^\[(\w+)\]", c)
+        if match and match.group(1) in _WORKER_SET:
+            done.add(match.group(1))
+    return done
+
+
 def route_decision(state: OrchestratorState) -> list[Send] | str:
     workers = state.next_workers
     if not workers or workers == ["FINISH"]:
         return "summarizer"
     if workers == ["DIRECT"]:
         return "direct"
-    return [Send(w, state) for w in workers]
+
+    # Programmatic guard: never re-dispatch a worker that already replied this turn
+    done = _already_responded(state)
+    pending = [w for w in workers if w not in done]
+    if not pending:
+        # Router asked for workers that already ran — force summarizer
+        return "summarizer"
+    return [Send(w, state) for w in pending]
 
 
 # ── Direct response node ──────────────────────────────────────────────────────
@@ -238,11 +260,18 @@ graph = build_graph()
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def run(task: str) -> str:
-    """Run a task through the supervisor graph and return the final synthesised response."""
-    init_state = OrchestratorState(messages=[HumanMessage(content=task)])
+def run(task: str, history: list[BaseMessage] | None = None) -> tuple[str, list[BaseMessage]]:
+    """Run a task through the supervisor graph.
+
+    Returns (response_text, updated_message_list) so callers can persist history.
+    """
+    prior = list(history or [])
+    init_state = OrchestratorState(messages=prior + [HumanMessage(content=task)])
     final_state = graph.invoke(init_state, config={"recursion_limit": 50})
-    for msg in reversed(final_state["messages"]):
+    all_msgs: list[BaseMessage] = final_state["messages"]
+    result = "No result."
+    for msg in reversed(all_msgs):
         if isinstance(msg, AIMessage):
-            return msg.content
-    return "No result."
+            result = msg.content
+            break
+    return result, all_msgs

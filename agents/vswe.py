@@ -4,7 +4,7 @@ Virtual Software Engineer (vSWE) — writes and validates code.
 Tools available:
   run_python — write and execute Python, verify output before responding
   run_bash   — inspect the environment, check files, run shell commands
-  write_file — save code/scripts to shared workspace
+  write_file — save intermediate results to avoid context loss (cleaned up after run)
   read_file  — read specs or data other agents wrote
   list_files — see what's in the shared workspace
 """
@@ -28,9 +28,18 @@ agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 
 def run(task: str, config: dict | None = None) -> str:
+    ws = _workspace()
+    before = set(ws.iterdir())
+
     result = agent.invoke({"messages": [("human", task)]}, config=config)
     raw = result["messages"][-1].content
     content = raw if isinstance(raw, str) else str(raw)
+
     filename = f"vswe_{uuid.uuid4().hex[:8]}.md"
-    (_workspace() / filename).write_text(content, encoding="utf-8")
+    final = ws / filename
+    final.write_text(content, encoding="utf-8")
+
+    for p in set(ws.iterdir()) - before - {final}:
+        p.unlink(missing_ok=True)
+
     return f"workspace/{filename}"

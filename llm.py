@@ -16,28 +16,49 @@ def get_llm(model: str | None = None) -> BaseChatModel:
     provider = os.getenv("LLM_PROVIDER", "bedrock").lower()
 
     if provider == "bedrock":
-        # Fall back to Ollama if creds are missing so local dev works without
-        # an AWS account. Explicit LLM_PROVIDER=ollama silences this warning.
-        if not os.getenv("AWS_ACCESS_KEY_ID"):
-            warnings.warn(
-                "AWS_ACCESS_KEY_ID not set — falling back to Ollama. "
-                "Set LLM_PROVIDER=ollama to silence this warning.",
-                stacklevel=2,
-            )
-            provider = "ollama"
-        else:
+        region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        model_id = model or os.getenv(
+            "BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"
+        )
+
+        # 1. Automatic credential resolution first.
+        # boto3's default credential chain resolves, in order: real env vars,
+        # the shared profile (~/.aws/credentials), and — crucially for
+        # SageMaker / EC2 / ECS — the attached IAM execution role via the
+        # container or instance metadata endpoint. Letting boto3 resolve the
+        # chain (instead of passing keys) also means temporary role credentials
+        # are refreshed automatically before they expire.
+        import boto3
+
+        if boto3.Session(region_name=region).get_credentials() is not None:
             from langchain_aws import ChatBedrockConverse
-            # Pass credentials directly — more reliable than relying on boto3
-            # reading env vars, especially with session tokens
+            return ChatBedrockConverse(model=model_id, region_name=region)
+
+        # 2. No ambient credentials — fall back to explicit keys from
+        # config.yaml. These live in a private namespace (see config.py) so they
+        # never shadow an execution role in the chain above.
+        cfg_key = os.getenv("MAYBACH_AWS_ACCESS_KEY_ID")
+        if cfg_key:
+            from langchain_aws import ChatBedrockConverse
             kwargs = dict(
-                model=model or os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0"),
-                region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                model=model_id,
+                region_name=region,
+                aws_access_key_id=cfg_key,
+                aws_secret_access_key=os.getenv("MAYBACH_AWS_SECRET_ACCESS_KEY"),
             )
-            if os.getenv("AWS_SESSION_TOKEN"):
-                kwargs["aws_session_token"] = os.getenv("AWS_SESSION_TOKEN")
+            if os.getenv("MAYBACH_AWS_SESSION_TOKEN"):
+                kwargs["aws_session_token"] = os.getenv("MAYBACH_AWS_SESSION_TOKEN")
             return ChatBedrockConverse(**kwargs)
+
+        # 3. Nothing available — fall back to Ollama so local dev works without
+        # an AWS account. Explicit LLM_PROVIDER=ollama silences this warning.
+        warnings.warn(
+            "No AWS credentials found (no execution role, shared profile, env "
+            "vars, or config.yaml keys) — falling back to Ollama. "
+            "Set LLM_PROVIDER=ollama to silence this warning.",
+            stacklevel=2,
+        )
+        provider = "ollama"
 
     if provider == "ollama":
         from langchain_ollama import ChatOllama
@@ -54,3 +75,4 @@ def get_llm(model: str | None = None) -> BaseChatModel:
 # Bedrock model ID for Claude Haiku — used by the orchestrator router.
 # Routing only classifies tasks, so a small/fast model is sufficient and cheaper.
 HAIKU = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+ 

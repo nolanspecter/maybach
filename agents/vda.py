@@ -6,7 +6,7 @@ Tools available:
   list_tables    — discover what tables exist
   describe_table — inspect a table's schema before querying
   run_python     — run analysis code (pandas, matplotlib, etc.)
-  write_file     — save reports/data to shared workspace
+  write_file     — save intermediate results to avoid context loss (cleaned up after run)
   read_file      — read files other agents wrote
   list_files     — see what's in the shared workspace
 """
@@ -32,10 +32,19 @@ agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 
 def run(task: str, config: dict | None = None) -> str:
+    ws = _workspace()
+    before = set(ws.iterdir())
+
     result = agent.invoke({"messages": [("human", task)]}, config=config)
     raw = result["messages"][-1].content
     content = raw if isinstance(raw, str) else str(raw)
-    # Auto-save output to workspace so orchestrator can read and summarise
+
     filename = f"vda_{uuid.uuid4().hex[:8]}.md"
-    (_workspace() / filename).write_text(content, encoding="utf-8")
+    final = ws / filename
+    final.write_text(content, encoding="utf-8")
+
+    # Remove intermediate files written by the agent during its work
+    for p in set(ws.iterdir()) - before - {final}:
+        p.unlink(missing_ok=True)
+
     return f"workspace/{filename}"

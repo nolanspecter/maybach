@@ -5,7 +5,7 @@ Tools available:
   write_document    — produce a formatted PRD, spec, or report
   create_task_list  — generate a prioritized, numbered checklist
   summarize_findings — combine multiple inputs into a structured summary
-  write_file        — save artifacts to shared workspace
+  write_file        — save intermediate results to avoid context loss (cleaned up after run)
   read_file         — read research or data other agents wrote
   list_files        — see what's in the shared workspace
 """
@@ -29,9 +29,18 @@ agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
 
 def run(task: str, config: dict | None = None) -> str:
+    ws = _workspace()
+    before = set(ws.iterdir())
+
     result = agent.invoke({"messages": [("human", task)]}, config=config)
     raw = result["messages"][-1].content
     content = raw if isinstance(raw, str) else str(raw)
+
     filename = f"vpm_{uuid.uuid4().hex[:8]}.md"
-    (_workspace() / filename).write_text(content, encoding="utf-8")
+    final = ws / filename
+    final.write_text(content, encoding="utf-8")
+
+    for p in set(ws.iterdir()) - before - {final}:
+        p.unlink(missing_ok=True)
+
     return f"workspace/{filename}"

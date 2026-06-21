@@ -30,6 +30,12 @@ export default function Home() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, liveEvents]);
 
+  async function resetConversation() {
+    await fetch("/api/conversation", { method: "DELETE" });
+    setMessages([]);
+    setLiveEvents([]);
+  }
+
   async function sendMessage(task: string) {
     if (!task.trim() || loading) return;
 
@@ -113,7 +119,7 @@ export default function Home() {
             <h1 className="font-serif text-[11px] tracking-[0.35em] uppercase text-[#F0EDE8] font-light select-none">
               Maybach
             </h1>
-            {/* Worker roster */}
+            {/* Worker roster + reset */}
             <div className="flex items-center gap-5">
               {WORKERS.map((w) => (
                 <span key={w.id} className="flex items-center gap-1.5">
@@ -123,6 +129,14 @@ export default function Home() {
                   </span>
                 </span>
               ))}
+              {messages.length > 0 && (
+                <button
+                  onClick={resetConversation}
+                  className="font-mono text-[9px] tracking-[0.12em] uppercase text-[#8A8782] hover:text-gold transition-colors"
+                >
+                  New
+                </button>
+              )}
             </div>
           </div>
           {/* Rule */}
