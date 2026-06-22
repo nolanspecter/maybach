@@ -21,7 +21,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 import agents.vda as vda_agent
 import agents.vswe as vswe_agent
@@ -174,6 +174,10 @@ async def orchestrate_stream(req: TaskRequest):
                         log.info("  → router decided  workers=%s", output.next_workers)
 
                     for msg in out_msgs:
+                        # Only assistant replies are candidates — never echo the
+                        # user's HumanMessage, which is re-emitted in node state.
+                        if not isinstance(msg, AIMessage):
+                            continue
                         c = getattr(msg, "content", "")
                         if isinstance(c, str) and c and not c.startswith("workspace/"):
                             ai_messages.append(c)
