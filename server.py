@@ -99,6 +99,8 @@ class OrchestrateResponse(BaseModel):
 
 
 def _sse(data: dict) -> str:
+    # Server-Sent Events wire format: each message is `data: <json>\n\n`.
+    # The browser's EventSource/stream reader splits on the blank line.
     return f"data: {json.dumps(data)}\n\n"
 
 
@@ -134,9 +136,13 @@ def orchestrate_endpoint(req: TaskRequest) -> OrchestrateResponse:
 
 @app.post("/orchestrate/stream")
 def orchestrate_stream(req: TaskRequest):
+    # The live endpoint the UI uses. It forwards the orchestrator's events to
+    # the browser as SSE, then sends a final `done` event with the result + the
+    # list of files produced this turn.
     global _history
     log.info("stream  task=%r  history_len=%d", req.task[:80], len(_history))
     prior = list(_history)
+    # Snapshot now; diff against it at the end to find this turn's new files.
     before_files = _workspace_snapshot()
 
     # Sync generator — Starlette iterates it in a threadpool, so the blocking
@@ -148,15 +154,17 @@ def orchestrate_stream(req: TaskRequest):
         new_history = prior + [{"role": "user", "content": req.task}]
 
         try:
+            # Pull events off the orchestrator one at a time and relay them.
             for ev in orchestrator.run_stream(req.task, prior):
                 etype = ev["type"]
                 if etype == "result":
-                    # Internal sentinel — fold into the final `done` event.
+                    # Internal sentinel (not sent to the UI) — carries the final
+                    # text/agents/history. Folded into the `done` event below.
                     result = ev["result"]
                     agents = ev["agents"]
                     new_history = ev["history"]
                 elif etype == "token":
-                    yield _sse(ev)
+                    yield _sse(ev)  # summary text, streamed to the UI live
                 elif etype in (
                     "routing", "agent_start", "tool_call", "tool_done",
                     "agent_done", "summarizing", "direct", "error",
@@ -194,7 +202,9 @@ def _event_line(ev: dict) -> str:
 
 
 def _make_route(agent_module, label: str):
-    """Factory that creates a FastAPI route handler for a single worker agent."""
+    """Factory that creates a FastAPI route handler for a single worker agent.
+    Used below to register POST /agents/vda, /agents/vswe, etc. — calling one
+    worker directly, bypassing the router/summarizer."""
     def handler(req: TaskRequest) -> TaskResponse:
         log.info("agent/%s  task=%r", label, req.task[:80])
         try:

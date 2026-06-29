@@ -111,13 +111,22 @@ class Agent:
         self.max_iters = max_iters
 
     def run(self, task: str, on_event: EventCb | None = None) -> str:
+        # `messages` is the running conversation we resend to the model every
+        # iteration. Four roles are used:
+        #   system    — the agent's instructions (sent once, first)
+        #   user      — the task
+        #   assistant — what the model said (may carry tool_calls)
+        #   tool      — the result of running a tool, fed back to the model
         messages: list[dict] = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": task},
         ]
         last_text = ""
 
+        # ReAct loop: think → act (call tools) → observe (tool results) → repeat,
+        # until the model answers with no tool calls, or we hit the safety cap.
         for _ in range(self.max_iters):
+            # 1. Ask the model. It either answers, or requests tool calls.
             msg = self.client.chat(messages, tools=self.specs)
             content = msg.get("content", "") or ""
             tool_calls = msg.get("tool_calls") or []
@@ -131,18 +140,21 @@ class Agent:
                     tool_calls = recovered
                     content = ""  # it was a tool call, not a final answer
 
-            # Preserve the assistant turn (with any tool calls) for context.
+            # 2. Record the model's turn so it has full context next iteration.
             assistant_turn: dict = {"role": "assistant", "content": content}
             if tool_calls:
                 assistant_turn["tool_calls"] = tool_calls
             messages.append(assistant_turn)
 
+            # 3. No tool calls → this is the final answer. Done.
             if not tool_calls:
                 return content or last_text
 
+            # Remember any text seen alongside tool calls as a last-resort answer.
             if content:
                 last_text = content
 
+            # 4. Run each requested tool and feed the result back as role="tool".
             for call in tool_calls:
                 fn = call.get("function", {}) or {}
                 tname = fn.get("name", "")

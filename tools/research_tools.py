@@ -1,3 +1,8 @@
+"""Document-formatting tools for the product/research agents (vPM, vDS).
+
+Pure formatting helpers — no I/O. They turn raw text into structured documents,
+checklists, and summaries the model can hand back or save with write_file.
+"""
 from core.tools import tool
 
 

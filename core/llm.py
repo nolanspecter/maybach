@@ -63,16 +63,17 @@ class OllamaClient:
         payload: dict[str, Any] = {
             "model": model or self.model,
             "messages": messages,
-            "stream": False,
+            "stream": False,                 # one complete reply, not a token stream
         }
         if tools:
-            payload["tools"] = tools
+            payload["tools"] = tools         # tool specs the model may call
         if fmt is not None:
-            payload["format"] = fmt
+            payload["format"] = fmt          # "json" forces valid-JSON output
         if temperature is not None:
             payload["options"] = {"temperature": temperature}
 
         data = self._post("/api/chat", payload)
+        # Response shape: {"message": {"role", "content", "tool_calls"?}, ...}
         return data.get("message", {}) or {}
 
     # ── streaming, text-only ─────────────────────────────────────────────────
@@ -95,6 +96,9 @@ class OllamaClient:
             with httpx.Client(timeout=self.timeout) as client:
                 with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as r:
                     r.raise_for_status()
+                    # Ollama streams newline-delimited JSON: one object per line,
+                    # each carrying a slice of the reply in message.content, with
+                    # the final line marked done=true.
                     for line in r.iter_lines():
                         if not line:
                             continue

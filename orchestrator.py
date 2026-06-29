@@ -129,26 +129,32 @@ def run_stream(task: str, history: list[dict] | None = None) -> Iterator[dict]:
     prior = list(history or [])
     turn = prior + [{"role": "user", "content": task}]
 
+    # Step 1: the router classifies the request into DIRECT or specific workers.
     yield {"type": "routing"}
     decision = _route(turn)
     workers = [w for w in decision if w in WORKERS]
 
     if not workers:
-        # ── Direct path ──────────────────────────────────────────────────────
+        # ── Direct path: just answer, no workers needed ──────────────────────
         yield {"type": "direct"}
+        # `yield from` re-yields every token event AND captures the helper's
+        # return value (the full text) — see _stream_reply's `return`.
         reply = yield from _stream_reply(
             [{"role": "system", "content": DIRECT_PROMPT}] + turn
         )
         yield _result(reply, ["Maybach"], turn)
         return
 
-    # ── Worker path ──────────────────────────────────────────────────────────
-    before_files = deliverable_snapshot()  # to report what this turn actually saved
+    # ── Worker path: run each worker, then summarize their output ────────────
+    # Snapshot the workspace now so we can tell exactly which files THIS turn
+    # created (diff taken after the workers finish, below).
+    before_files = deliverable_snapshot()
     ran: list[str] = []
     outputs: list[str] = []
     for name in workers:
         yield {"type": "agent_start", "agent": name}
         try:
+            # Re-yields the worker's live tool events; returns its output path.
             file_path = yield from _run_worker(name, task)
         except Exception as e:  # noqa: BLE001 — report and keep going
             yield {"type": "error", "message": f"{name} failed: {e}"}
@@ -156,11 +162,13 @@ def run_stream(task: str, history: list[dict] | None = None) -> Iterator[dict]:
         ran.append(name)
         yield {"type": "agent_done", "agent": name, "file": file_path}
 
+        # Collect the worker's written result to feed the summarizer.
         body = _read_output(file_path)
         if body is not None:
             outputs.append(f"## [{name}] output\n{body}")
 
-    # ── Summarize ────────────────────────────────────────────────────────────
+    # Step 3: summarize. `produced` = files that appeared since `before_files`,
+    # i.e. the real deliverables — passed to the summarizer so it can't fib.
     yield {"type": "summarizing"}
     produced = sorted(deliverable_snapshot() - before_files)
     reply = yield from _stream_reply([
@@ -186,7 +194,11 @@ def _summary_input(task: str, outputs: list[str], produced: list[str]) -> str:
 
 def _stream_reply(messages: list[dict]) -> Iterator[dict]:
     """Stream a model reply token-by-token, yielding {"type":"token"} events.
-    Returns the full text (via generator return)."""
+
+    A generator that also `return`s a value: callers use `text = yield from
+    _stream_reply(...)` to forward every token event to the UI while collecting
+    the assembled text in one line.
+    """
     parts: list[str] = []
     for tok in _client.stream(messages):
         parts.append(tok)
@@ -196,12 +208,20 @@ def _stream_reply(messages: list[dict]) -> Iterator[dict]:
 
 def _run_worker(name: str, task: str) -> Iterator[dict]:
     """Run a worker in a thread so its tool events stream live while the
-    blocking agent loop executes. Returns the worker's output file path."""
+    blocking agent loop executes. Returns the worker's output file path.
+
+    Why a thread: worker.run() blocks (it makes synchronous HTTP calls to the
+    model). But we want to forward its tool_call/tool_done events to the UI *as
+    they happen*. So the worker runs on a background thread and pushes events
+    into a queue; this generator drains the queue and yields them, then returns
+    the final file path once the worker signals completion with a None sentinel.
+    """
     q: queue.Queue = queue.Queue()
-    box: dict = {}
+    box: dict = {}  # carries the result/error out of the thread
 
     def work():
         try:
+            # on_event=q.put → every event the agent emits lands on the queue.
             box["file"] = WORKERS[name].run(task, on_event=q.put)
         except Exception as e:  # noqa: BLE001 — surfaced to caller below
             box["error"] = e
@@ -211,7 +231,7 @@ def _run_worker(name: str, task: str) -> Iterator[dict]:
     t = threading.Thread(target=work, daemon=True)
     t.start()
     while True:
-        ev = q.get()
+        ev = q.get()        # blocks until the worker emits an event or finishes
         if ev is None:
             break
         yield ev

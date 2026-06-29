@@ -79,9 +79,14 @@ class Tool:
 
 
 def tool(func: Callable[..., Any]) -> Tool:
-    """Decorator: build a Tool from a typed, documented function."""
+    """Decorator: build a Tool from a typed, documented function.
+
+    The model needs a JSON-schema description of each argument to call a tool.
+    We derive that automatically by reading the function's type hints (for the
+    argument types) and signature (to tell required args from optional ones).
+    """
     try:
-        hints = get_type_hints(func)
+        hints = get_type_hints(func)        # {"query": str, "db_path": str, ...}
     except Exception:
         hints = {}
     sig = inspect.signature(func)
@@ -91,7 +96,9 @@ def tool(func: Callable[..., Any]) -> Tool:
     for pname, param in sig.parameters.items():
         if pname == "self":
             continue
+        # Each parameter becomes one JSON-schema property: {"query": {"type": "string"}}
         properties[pname] = _json_type(hints.get(pname, str))
+        # A parameter with no default is required; one with a default is optional.
         if param.default is inspect.Parameter.empty:
             required.append(pname)
 
@@ -99,6 +106,8 @@ def tool(func: Callable[..., Any]) -> Tool:
     if required:
         parameters["required"] = required
 
+    # The docstring becomes the tool description the model reads to decide when
+    # to call it — so every @tool function must have a clear one.
     description = inspect.getdoc(func) or func.__name__
     return Tool(
         name=func.__name__,

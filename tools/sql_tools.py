@@ -1,3 +1,8 @@
+"""SQLite tools for the data agents (vDA, vDS).
+
+Each @tool runs against a SQLite database (in-memory by default). Results come
+back as markdown tables so the model — and the user — can read them directly.
+"""
 import sqlite3
 from core.tools import tool
 

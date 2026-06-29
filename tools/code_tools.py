@@ -1,3 +1,9 @@
+"""Code-execution tools the engineering/data agents can call.
+
+Each @tool function is exposed to the model as a callable. They shell out to a
+subprocess with a timeout so a runaway program can't hang the server. Output
+(stdout + stderr) is returned as text the model reads on its next turn.
+"""
 import subprocess
 import tempfile
 import os
