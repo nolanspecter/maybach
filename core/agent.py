@@ -28,6 +28,72 @@ def _preview(args: dict) -> str:
     return s[:120]
 
 
+def _find_json_objects(text: str) -> list[str]:
+    """Return every balanced top-level {...} substring in text."""
+    objs: list[str] = []
+    depth = 0
+    start = None
+    in_str = False
+    esc = False
+    for i, ch in enumerate(text):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start is not None:
+                objs.append(text[start:i + 1])
+                start = None
+    return objs
+
+
+def _parse_text_tool_calls(content: str, known: set[str]) -> list[dict]:
+    """Recover tool calls a model emitted as JSON in its text instead of as
+    native tool_calls. Only matches objects naming a known tool, so a final
+    answer that merely contains JSON is never mistaken for a call.
+
+    Handles the common shapes:
+        {"name": "run_python", "parameters": {...}}
+        {"name": "run_python", "arguments": {...}}
+        {"function": {"name": "run_python", "arguments": {...}}}
+    """
+    calls: list[dict] = []
+    for raw in _find_json_objects(content):
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(obj, dict):
+            continue
+
+        fn = obj.get("function")
+        if isinstance(fn, dict):
+            name = fn.get("name")
+            args = fn.get("arguments", fn.get("parameters"))
+        else:
+            name = obj.get("name") or obj.get("tool")
+            args = obj.get("arguments")
+            if args is None:
+                args = obj.get("parameters")
+            if args is None:
+                args = obj.get("args")
+
+        if isinstance(name, str) and name in known:
+            calls.append({"function": {"name": name, "arguments": args or {}}})
+    return calls
+
+
 class Agent:
     def __init__(
         self,
@@ -56,17 +122,26 @@ class Agent:
             content = msg.get("content", "") or ""
             tool_calls = msg.get("tool_calls") or []
 
+            # Fallback: some models (e.g. llama3.2) emit a tool call as JSON in
+            # the text instead of as native tool_calls. Recover those so the
+            # tool actually runs rather than the model hallucinating a result.
+            if not tool_calls and content:
+                recovered = _parse_text_tool_calls(content, set(self.tools))
+                if recovered:
+                    tool_calls = recovered
+                    content = ""  # it was a tool call, not a final answer
+
             # Preserve the assistant turn (with any tool calls) for context.
             assistant_turn: dict = {"role": "assistant", "content": content}
             if tool_calls:
                 assistant_turn["tool_calls"] = tool_calls
             messages.append(assistant_turn)
 
-            if content:
-                last_text = content
-
             if not tool_calls:
                 return content or last_text
+
+            if content:
+                last_text = content
 
             for call in tool_calls:
                 fn = call.get("function", {}) or {}

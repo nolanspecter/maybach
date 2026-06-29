@@ -50,6 +50,23 @@ def fake_stream(self, messages, model=None, temperature=None):
         yield tok
 
 
+# A model that returns its tool call as JSON-in-text (no native tool_calls),
+# the way llama3.2 sometimes does. Used by test_text_fallback.
+_text_calls: dict[int, int] = {}
+
+
+def fake_chat_text_tool(self, messages, tools=None, fmt=None, model=None, temperature=None):
+    n = _text_calls.get(id(self), 0) + 1
+    _text_calls[id(self)] = n
+    if n == 1:
+        return {
+            "role": "assistant",
+            "content": '```json\n{"name": "write_file", "parameters": '
+                       '{"filename": "note.txt", "content": "hi"}}\n```',
+        }
+    return {"role": "assistant", "content": "Saved note.txt."}
+
+
 llm_mod.OllamaClient.chat = fake_chat
 llm_mod.OllamaClient.stream = fake_stream
 
@@ -151,8 +168,23 @@ def test_run_tuple():
     check("history grows across turns", len(history2) == 4)
 
 
+def test_text_fallback():
+    print("agent — JSON-in-text tool-call fallback")
+    llm_mod.OllamaClient.chat = fake_chat_text_tool
+    try:
+        events = []
+        a = Agent("vSWE", "system", [write_file])
+        out = a.run("save a note", on_event=events.append)
+        check("tool recovered from text", any(e["type"] == "tool_call" for e in events))
+        check("recovered tool ran write_file", (_workspace() / "note.txt").exists())
+        check("final answer after recovery", "Saved" in out)
+    finally:
+        llm_mod.OllamaClient.chat = fake_chat  # restore for any later tests
+
+
 if __name__ == "__main__":
-    for t in (test_tools, test_agent_loop, test_direct, test_worker_path, test_run_tuple):
+    for t in (test_tools, test_agent_loop, test_text_fallback,
+              test_direct, test_worker_path, test_run_tuple):
         t()
     print()
     if _failures:
