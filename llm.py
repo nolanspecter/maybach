@@ -72,6 +72,26 @@ def get_llm(model: str | None = None) -> BaseChatModel:
     )
 
 
+def message_text(content) -> str:
+    """Normalise a chat message's content to plain text.
+
+    Bedrock Converse returns content as a list of typed blocks
+    (e.g. [{"type": "text", "text": "..."}]); Ollama returns a plain string.
+    Without this, str(list) leaks the raw repr into saved files and summaries.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type", "text") == "text":
+                parts.append(block.get("text", ""))
+        return "\n".join(p for p in parts if p)
+    return str(content)
+
+
 # Bedrock model ID for Claude Haiku — used by the orchestrator router.
 # Routing only classifies tasks, so a small/fast model is sufficient and cheaper.
 HAIKU = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")

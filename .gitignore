@@ -24,3 +24,6 @@ ui/.env.local
 
 # Shared agent workspace (runtime artifacts)
 workspace/
+.DS_Store
+graphify-out/
+ui/tsconfig.tsbuildinfo

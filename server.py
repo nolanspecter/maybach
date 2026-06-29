@@ -20,8 +20,11 @@ load_config()
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, AIMessage
+
+from tools.workspace_tools import _workspace
 
 import agents.vda as vda_agent
 import agents.vswe as vswe_agent
@@ -47,7 +50,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve the shared workspace so users can open/download deliverable files.
+# Reachable from the UI via the /api/backend/files/* rewrite.
+app.mount("/files", StaticFiles(directory=str(_workspace())), name="files")
+
 WORKER_NODES = {"vDA", "vPM", "vSWE", "vDS"}
+
+# Per-agent summary files (vXX_<hex>.md) are internal, not user deliverables.
+_SUMMARY_RE = re.compile(r"^v(?:da|pm|swe|ds)_[0-9a-f]+\.md$", re.IGNORECASE)
+
+
+def _workspace_snapshot() -> set[str]:
+    ws = _workspace()
+    return {str(p.relative_to(ws)) for p in ws.rglob("*") if p.is_file()}
+
+
+def _deliverables(before: set[str]) -> list[dict]:
+    """Files created this turn that are user-facing deliverables.
+
+    Excludes internal agent summaries and scratch checkpoints.
+    """
+    ws = _workspace()
+    out = []
+    for p in sorted(ws.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(ws)
+        if ".checkpoints" in rel.parts or _SUMMARY_RE.match(rel.name):
+            continue
+        if str(rel) in before:
+            continue
+        out.append({"name": rel.name, "path": str(rel)})
+    return out
 
 # Single-session conversation memory — persists across requests until reset
 _history: list[BaseMessage] = []
@@ -66,10 +100,33 @@ class OrchestrateResponse(BaseModel):
     agents: list[str]
     result: str
     raw: str
+    files: list[dict] = []
 
 
 def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
+
+
+def _chunk_text(chunk) -> str:
+    """Extract plain text from a streamed model chunk.
+
+    Bedrock Converse yields content as a list of typed blocks; Ollama yields a
+    plain string. Normalise both to text so tokens can be streamed to the UI.
+    """
+    if chunk is None:
+        return ""
+    content = getattr(chunk, "content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                parts.append(block.get("text", "") if block.get("type", "text") == "text" else "")
+        return "".join(parts)
+    return ""
 
 
 @app.get("/health")
@@ -91,14 +148,16 @@ async def orchestrate_endpoint(req: TaskRequest) -> OrchestrateResponse:
     global _history
     log.info("orchestrate  task=%r  history_len=%d", req.task[:80], len(_history))
     try:
+        before = _workspace_snapshot()
         raw, updated = orchestrator.run(req.task, history=_history)
         _history = updated
         all_labels = re.findall(r"\[(\w+)\]", raw)
         agents = list(dict.fromkeys(all_labels)) or ["Maybach"]
         match = re.match(r"^\[(\w+)\]\s*", raw)
         result = raw[match.end():] if match else raw
-        log.info("orchestrate  done  agents=%s", agents)
-        return OrchestrateResponse(agents=agents, result=result, raw=raw)
+        files = _deliverables(before)
+        log.info("orchestrate  done  agents=%s  files=%d", agents, len(files))
+        return OrchestrateResponse(agents=agents, result=result, raw=raw, files=files)
     except Exception as e:
         log.error("orchestrate  error: %s\n%s", e, traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
@@ -109,6 +168,7 @@ async def orchestrate_stream(req: TaskRequest):
     global _history
     log.info("stream  task=%r  history_len=%d", req.task[:80], len(_history))
     prior = list(_history)
+    before_files = _workspace_snapshot()
 
     async def generate():
         global _history
@@ -117,6 +177,8 @@ async def orchestrate_stream(req: TaskRequest):
         )
         ai_messages: list[str] = []
         active_agent: str = ""
+        seen_agents: list[str] = []
+        streamed_text: str = ""
 
         try:
             async for event in orchestrator.graph.astream_events(
@@ -134,6 +196,8 @@ async def orchestrate_stream(req: TaskRequest):
                         yield _sse({"type": "routing"})
                     elif name in WORKER_NODES:
                         active_agent = name
+                        if name not in seen_agents:
+                            seen_agents.append(name)
                         log.info("  → agent_start  agent=%s", name)
                         yield _sse({"type": "agent_start", "agent": name})
                     elif name == "summarizer":
@@ -144,6 +208,17 @@ async def orchestrate_stream(req: TaskRequest):
                         active_agent = ""
                         log.info("  → direct")
                         yield _sse({"type": "direct"})
+
+                elif etype == "on_chat_model_stream":
+                    # Stream the user-facing reply token-by-token. Scoped to the
+                    # summarizer (and direct) node so worker-internal model
+                    # tokens never leak into the final summary text.
+                    node = event.get("metadata", {}).get("langgraph_node", "")
+                    if node in ("summarizer", "direct"):
+                        token = _chunk_text(data.get("chunk"))
+                        if token:
+                            streamed_text += token
+                            yield _sse({"type": "token", "text": token})
 
                 elif etype == "on_tool_start":
                     raw_input = data.get("input", {})
@@ -187,14 +262,22 @@ async def orchestrate_stream(req: TaskRequest):
             yield _sse({"type": "error", "message": str(e)})
             return
 
-        result = ""
-        for msg in reversed(ai_messages):
-            if not re.match(r"^\[v\w+\]", msg):
-                result = msg
-                break
+        # Prefer the live-streamed summary text. Fall back to the collected
+        # AIMessages only if streaming produced nothing (e.g. model without
+        # streaming support).
+        if streamed_text.strip():
+            result = streamed_text
+        else:
+            result = ""
+            for msg in reversed(ai_messages):
+                if not re.match(r"^\[v\w+\]", msg):
+                    result = msg
+                    break
 
-        all_labels = re.findall(r"\[(\w+)\]", result) if result else []
-        agents = list(dict.fromkeys(all_labels)) or ["Maybach"]
+        # Agents are the workers that actually ran this turn; fall back to any
+        # labels embedded in the result, else Maybach for a direct reply.
+        agents = seen_agents or re.findall(r"\[(\w+)\]", result) or ["Maybach"]
+        agents = list(dict.fromkeys(agents))
         clean = re.sub(r"^\[\w+\]\s*", "", result)
 
         # Persist conversation: prior history + this turn's human + final AI reply
@@ -203,8 +286,9 @@ async def orchestrate_stream(req: TaskRequest):
         if clean:
             _history.append(_AI(content=clean))
 
-        log.info("stream  done  agents=%s  history_len=%d", agents, len(_history))
-        yield _sse({"type": "done", "result": clean, "agents": agents})
+        files = _deliverables(before_files)
+        log.info("stream  done  agents=%s  files=%d  history_len=%d", agents, len(files), len(_history))
+        yield _sse({"type": "done", "result": clean, "agents": agents, "files": files})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

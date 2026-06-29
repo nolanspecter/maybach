@@ -21,6 +21,7 @@ const WORKERS = [
 export default function Home() {
   const [messages, setMessages]     = useState<ChatMessage[]>([]);
   const [liveEvents, setLiveEvents] = useState<StreamEvent[]>([]);
+  const [streaming, setStreaming]   = useState("");
   const [input, setInput]           = useState("");
   const [loading, setLoading]       = useState(false);
   const bottomRef                   = useRef<HTMLDivElement>(null);
@@ -28,7 +29,7 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, liveEvents, loading]);
+  }, [messages, liveEvents, streaming, loading]);
 
   async function resetConversation() {
     await fetch("/api/conversation", { method: "DELETE" });
@@ -43,6 +44,7 @@ export default function Home() {
     setInput("");
     setLoading(true);
     setLiveEvents([]);
+    setStreaming("");
 
     try {
       const res = await fetch("/api/stream", {
@@ -69,13 +71,19 @@ export default function Home() {
             const event: StreamEvent = JSON.parse(line.slice(6));
             if (event.type === "done") {
               setLiveEvents([]);
+              setStreaming("");
               setMessages((prev) => [...prev, {
                 id: Date.now().toString(), role: "assistant",
-                content: event.result, agents: event.agents,
+                content: event.result, agents: event.agents, files: event.files,
               }]);
             } else if (event.type === "error") {
               setLiveEvents([]);
+              setStreaming("");
               setMessages((prev) => [...prev, { id: Date.now().toString(), role: "error", content: event.message }]);
+            } else if (event.type === "token") {
+              // Summary streaming in — clear the progress log, build text live
+              setLiveEvents([]);
+              setStreaming((prev) => prev + event.text);
             } else {
               setLiveEvents((prev) => [...prev, event]);
             }
@@ -90,6 +98,7 @@ export default function Home() {
     } finally {
       setLoading(false);
       setLiveEvents([]);
+      setStreaming("");
       inputRef.current?.focus();
     }
   }
@@ -190,6 +199,10 @@ export default function Home() {
           {messages.map((msg) => (
             <Message key={msg.id} msg={msg} />
           ))}
+
+          {streaming && (
+            <Message msg={{ id: "streaming", role: "assistant", content: streaming }} />
+          )}
 
           {liveEvents.length > 0 && (
             <div className="pl-3 border-l border-[#2A2A26]">

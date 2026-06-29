@@ -108,18 +108,21 @@ def _already_responded(state: OrchestratorState) -> set[str]:
 
 def route_decision(state: OrchestratorState) -> list[Send] | str:
     workers = state.next_workers
+    done = _already_responded(state)
+
+    # Once ANY worker has produced output this turn, the terminal step is
+    # ALWAYS the summarizer — never a direct response, never FINISH without
+    # synthesis. Guarantees the user always gets the agents' work summarised.
+    if done:
+        pending = [w for w in (workers or []) if w in _WORKER_SET and w not in done]
+        return [Send(w, state) for w in pending] if pending else "summarizer"
+
+    # First pass — no workers have run yet.
     if not workers or workers == ["FINISH"]:
         return "summarizer"
     if workers == ["DIRECT"]:
         return "direct"
-
-    # Programmatic guard: never re-dispatch a worker that already replied this turn
-    done = _already_responded(state)
-    pending = [w for w in workers if w not in done]
-    if not pending:
-        # Router asked for workers that already ran — force summarizer
-        return "summarizer"
-    return [Send(w, state) for w in pending]
+    return [Send(w, state) for w in workers]
 
 
 # ── Direct response node ──────────────────────────────────────────────────────

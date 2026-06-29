@@ -1,5 +1,7 @@
 "use client";
 
+export interface WorkspaceFile { name: string; path: string }
+
 export type StreamEvent =
   | { type: "routing" }
   | { type: "agent_start"; agent: string }
@@ -8,7 +10,8 @@ export type StreamEvent =
   | { type: "agent_done";  agent: string; file: string }
   | { type: "summarizing" }
   | { type: "direct" }
-  | { type: "done";  result: string; agents: string[] }
+  | { type: "token"; text: string }
+  | { type: "done";  result: string; agents: string[]; files?: WorkspaceFile[] }
   | { type: "error"; message: string };
 
 // Muted warm tones — readable on the dark warm background without popping too hard
