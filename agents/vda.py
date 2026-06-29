@@ -11,14 +11,12 @@ Tools available:
   read_file      — read files other agents wrote
   list_files     — see what's in the shared workspace
 """
-import uuid
-
 from core.agent import Agent
+from core.output import deliverable_snapshot, salvage_deliverables, write_job_output
 from tools.sql_tools import run_sql, list_tables, describe_table
 from tools.code_tools import run_python
 from tools.workspace_tools import (
-    write_file, save_checkpoint, read_file, list_files,
-    _workspace, cleanup_checkpoints,
+    write_file, save_checkpoint, read_file, list_files, cleanup_checkpoints,
 )
 
 SYSTEM_PROMPT = """You are a Virtual Data Analyst (vDA).
@@ -36,14 +34,14 @@ agent = Agent(
 
 
 def run(task: str, on_event=None) -> str:
-    """Run the agent and save its final answer as the deliverable summary.
-    Returns the workspace-relative path. on_event streams tool activity."""
+    """Run the agent. Always writes the job result to a file and returns its
+    path; salvages any unsaved code from the answer. on_event streams tools."""
+    before = deliverable_snapshot()
     content = agent.run(task, on_event=on_event)
 
-    filename = f"vda_{uuid.uuid4().hex[:8]}.md"
-    (_workspace() / filename).write_text(content, encoding="utf-8")
+    salvage_deliverables("vDA", content, before)
+    path = write_job_output("vDA", content)
 
     # Purge only scratch checkpoints — deliverables the agent wrote are kept.
     cleanup_checkpoints()
-
-    return f"workspace/{filename}"
+    return path

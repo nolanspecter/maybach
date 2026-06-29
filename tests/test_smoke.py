@@ -168,6 +168,40 @@ def test_run_tuple():
     check("history grows across turns", len(history2) == 4)
 
 
+def test_output_guarantee_and_salvage():
+    print("output — guaranteed file + code salvage")
+    import core.output as out
+
+    # Empty model output still yields a non-empty job file.
+    path = out.write_job_output("vSWE", "")
+    p = _workspace() / path.split("/", 1)[1]
+    check("job file always written", p.exists())
+    check("job file never empty", p.read_text().strip() != "")
+
+    # Code block + a named filename → salvaged under that name.
+    before = out.deliverable_snapshot()
+    content = "Here is the script.\n```python\nprint('hi')\n```\nI saved it as hello.py."
+    written = out.salvage_deliverables("vSWE", content, before)
+    check("named code block salvaged as hello.py", "hello.py" in written)
+    check("salvaged file has the code", "print('hi')" in (_workspace() / "hello.py").read_text())
+
+    # Code block with no filename → generic name from label.
+    before = out.deliverable_snapshot()
+    written = out.salvage_deliverables("vDS", "```python\nx = 1\n```", before)
+    check("unnamed block gets generic name", written == ["vds_output1.py"])
+
+    # If a deliverable already exists from this run, salvage is skipped.
+    before = out.deliverable_snapshot()
+    (_workspace() / "explicit.txt").write_text("saved by write_file", encoding="utf-8")
+    written = out.salvage_deliverables("vSWE", "```python\ny = 2\n```", before)
+    check("salvage skipped when deliverable already written", written == [])
+
+    # Prose/console blocks are not salvaged.
+    before = out.deliverable_snapshot()
+    written = out.salvage_deliverables("vSWE", "Output:\n```\n4\n```", before)
+    check("plain (non-code) block not salvaged", written == [])
+
+
 def test_text_fallback():
     print("agent — JSON-in-text tool-call fallback")
     llm_mod.OllamaClient.chat = fake_chat_text_tool
@@ -183,8 +217,8 @@ def test_text_fallback():
 
 
 if __name__ == "__main__":
-    for t in (test_tools, test_agent_loop, test_text_fallback,
-              test_direct, test_worker_path, test_run_tuple):
+    for t in (test_tools, test_agent_loop, test_output_guarantee_and_salvage,
+              test_text_fallback, test_direct, test_worker_path, test_run_tuple):
         t()
     print()
     if _failures:
