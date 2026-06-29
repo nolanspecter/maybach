@@ -12,13 +12,15 @@ Tools available:
   list_files        — see what's in the shared workspace
 """
 import uuid
-from langgraph.prebuilt import create_react_agent
 
-from llm import get_llm, message_text
+from core.agent import Agent
 from tools.code_tools import run_python
 from tools.sql_tools import run_sql, list_tables
 from tools.research_tools import summarize_findings
-from tools.workspace_tools import write_file, save_checkpoint, read_file, list_files, _workspace, cleanup_checkpoints
+from tools.workspace_tools import (
+    write_file, save_checkpoint, read_file, list_files,
+    _workspace, cleanup_checkpoints,
+)
 
 SYSTEM_PROMPT = """You are a Virtual Data Scientist (vDS).
 Your job: design and run data science workflows — feature engineering, model training,
@@ -26,24 +28,22 @@ statistical tests, and result interpretation.
 Always show code and output. Interpret numbers in plain English.
 Use Python (pandas, sklearn, scipy, numpy) for analysis."""
 
-_llm = get_llm()
-_tools = [run_python, run_sql, list_tables, summarize_findings, write_file, save_checkpoint, read_file, list_files]
+agent = Agent(
+    name="vDS",
+    system_prompt=SYSTEM_PROMPT,
+    tools=[run_python, run_sql, list_tables, summarize_findings,
+           write_file, save_checkpoint, read_file, list_files],
+)
 
-agent = create_react_agent(_llm, _tools, prompt=SYSTEM_PROMPT)
 
-
-def run(task: str, config: dict | None = None) -> str:
-    ws = _workspace()
-
-    result = agent.invoke({"messages": [("human", task)]}, config=config)
-    raw = result["messages"][-1].content
-    content = message_text(raw)
+def run(task: str, on_event=None) -> str:
+    """Run the agent and save its final answer as the deliverable summary.
+    Returns the workspace-relative path. on_event streams tool activity."""
+    content = agent.run(task, on_event=on_event)
 
     filename = f"vds_{uuid.uuid4().hex[:8]}.md"
-    final = ws / filename
-    final.write_text(content, encoding="utf-8")
+    (_workspace() / filename).write_text(content, encoding="utf-8")
 
-    # Purge only scratch checkpoints — deliverables the agent wrote are kept.
     cleanup_checkpoints()
 
     return f"workspace/{filename}"

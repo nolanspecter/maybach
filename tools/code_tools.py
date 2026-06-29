@@ -1,7 +1,7 @@
 import subprocess
 import tempfile
 import os
-from langchain_core.tools import tool
+from core.tools import tool
 
 
 @tool

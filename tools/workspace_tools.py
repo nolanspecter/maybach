@@ -5,7 +5,7 @@ Override via WORKSPACE_DIR env var.
 """
 import os
 from pathlib import Path
-from langchain_core.tools import tool
+from core.tools import tool
 
 _CHECKPOINT_DIR = ".checkpoints"
 

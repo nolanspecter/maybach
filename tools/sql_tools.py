@@ -1,5 +1,5 @@
 import sqlite3
-from langchain_core.tools import tool
+from core.tools import tool
 
 
 @tool

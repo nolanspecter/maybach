@@ -1,6 +1,13 @@
 # Maybach
 
-A multi-agent system with four virtual employees — Data Analyst, Product Manager, Software Engineer, and Data Scientist — orchestrated by a LangGraph supervisor. Comes with a modern chat UI.
+A multi-agent system with four virtual employees — Data Analyst, Product Manager,
+Software Engineer, and Data Scientist — coordinated by a hand-rolled supervisor.
+Comes with a modern chat UI.
+
+**Built from scratch.** No LangChain, no LangGraph, no agent framework. The whole
+harness is ~400 lines of plain Python over a local [Ollama](https://ollama.com)
+server: a tiny HTTP client, a `@tool` decorator, a ReAct loop, and an explicit
+orchestrator. No API keys, no cloud account, no cost.
 
 ---
 
@@ -8,149 +15,62 @@ A multi-agent system with four virtual employees — Data Analyst, Product Manag
 
 - Python 3.11+
 - Node.js 18+
-- An LLM provider (Ollama for free local testing, or AWS Bedrock for production)
+- [Ollama](https://ollama.com) (runs models locally)
 
 ---
 
-## Option A — Run Free with Ollama (recommended for testing)
+## 1. Install Ollama and pull a model
 
-No API keys, no account, no cost. Runs entirely on your machine.
-
-### 1. Install Ollama and pull a model
+The model must support **tool calling**. `llama3.2` does and runs well on most machines.
 
 ```bash
 # macOS
 brew install ollama
 
-# Then pull a model (llama3.2 is ~2GB, runs well on most machines)
-ollama pull llama3.2
-
-# Start the Ollama server (runs in background)
+# Start the server (leave running in a terminal, or `ollama serve &`)
 ollama serve
+
+# Pull a tool-capable model (~2GB)
+ollama pull llama3.2
 ```
 
-> Other good free models: `mistral`, `gemma2:2b` (smaller/faster), `llama3.1:8b`
+> Other tool-capable options: `llama3.1:8b` (stronger), `qwen2.5`, `mistral-nemo`.
+> Small models without tool support (e.g. `gemma2:2b`) will route and chat but
+> cannot drive the worker tools.
 
-### 2. Configure `.env`
+---
+
+## 2. Configure (optional)
+
+Defaults work out of the box. To override, copy the template:
 
 ```bash
-cp .env.example .env
+cp config.yaml.example config.yaml
 ```
 
-The default `.env.example` already points to Ollama — no changes needed:
-
-```env
-LLM_PROVIDER=ollama
-OLLAMA_MODEL=llama3.2
+```yaml
+ollama:
+  model: llama3.2
+  base_url: http://localhost:11434
+  # router_model: llama3.2   # optional — a smaller model is fine for routing
 ```
+
+Environment variables take precedence over `config.yaml` (`.env.example` lists them).
 
 ---
 
-## Option B — AWS Bedrock (production / Claude models)
-
-### 1. Get AWS credentials
-
-1. Go to [console.aws.amazon.com/iam](https://console.aws.amazon.com/iam) and sign in.
-2. Navigate to **Users** → **Create user**.
-3. Give it a name (e.g. `maybach-agent`), click **Next**.
-4. Select **Attach policies directly** → search **AmazonBedrockFullAccess** → **Create user**.
-5. Open the user → **Security credentials** → **Create access key** → download the CSV.
-
-### 2. Enable Claude in Bedrock
-
-1. Go to [console.aws.amazon.com/bedrock](https://console.aws.amazon.com/bedrock).
-2. **Model access** → **Modify model access** → check Claude Sonnet → **Save**.
-
-### 3. Configure `.env`
-
-```env
-LLM_PROVIDER=bedrock
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_DEFAULT_REGION=us-east-1
-BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250514-v1:0
-```
-
----
-
-## Choosing a Provider
-
-Bedrock is default. If AWS creds missing, auto-falls back to Ollama with a warning.
-
-```env
-LLM_PROVIDER=bedrock   # default — Claude models, production quality
-LLM_PROVIDER=ollama    # force local — free, no account needed
-```
-
-| | Bedrock | Ollama |
-|---|---|---|
-| Cost | Pay per token | Free |
-| Setup | AWS account + IAM key | Install app + pull model |
-| Models | Claude (Haiku, Sonnet, Opus) | Open-source (Llama, Mistral, Gemma) |
-| Internet | Required | Not required |
-| Best for | Production | Development, testing |
-
-**Auto-fallback:** set `LLM_PROVIDER=bedrock` but leave AWS keys blank → system warns and runs Ollama automatically. Useful for local dev without touching the provider setting.
-
----
-
-## Choosing Models
-
-### Ollama
-
-Set `OLLAMA_MODEL` to any model you've pulled. Smaller = faster, larger = smarter.
-
-```env
-OLLAMA_MODEL=llama3.2        # default, good balance (~2GB)
-OLLAMA_MODEL=gemma2:2b       # fastest, lightest (~1.5GB)
-OLLAMA_MODEL=llama3.1:8b     # stronger reasoning (~5GB)
-OLLAMA_MODEL=mistral         # good at code (~4GB)
-```
-
-Pull any model with `ollama pull <name>`. Browse all available models at [ollama.com/library](https://ollama.com/library).
-
-### Bedrock
-
-The system uses **two separate models**:
-
-| Role | Env var | Default |
-|------|---------|---------|
-| Router (orchestrator) | hardcoded in `llm.py` | `claude-haiku-4-5` |
-| Workers (vDA, vPM, vSWE, vDS) | `BEDROCK_MODEL_ID` | `claude-sonnet-4-5` |
-
-The router uses Haiku by default because it only classifies tasks — fast and cheap. Workers use Sonnet for quality output.
-
-**To change the worker model**, set `BEDROCK_MODEL_ID` in `.env`:
-
-```env
-# Faster / cheaper
-BEDROCK_MODEL_ID=us.anthropic.claude-haiku-4-5-20251001-v1:0
-
-# Default
-BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250514-v1:0
-
-# Most capable
-BEDROCK_MODEL_ID=us.anthropic.claude-opus-4-8-20251101-v1:0
-```
-
-**To change the router model**, edit the `HAIKU` constant in [`llm.py`](llm.py).
-
----
-
-## Backend Setup
+## 3. Backend
 
 ```bash
-cd maybach
-
 python3 -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
 
 uvicorn server:app --reload --port 8000
 ```
 
-Verify it's running:
+Verify:
 
 ```bash
 curl http://localhost:8000/health
@@ -159,7 +79,7 @@ curl http://localhost:8000/health
 
 ---
 
-## Frontend Setup
+## 4. Frontend
 
 ```bash
 cd ui
@@ -174,8 +94,59 @@ Open [http://localhost:3000](http://localhost:3000).
 ## CLI (optional)
 
 ```bash
-# From the maybach/ directory with the venv active
 python main.py "Write a PRD for a user notification system"
+```
+
+---
+
+## Tests
+
+A smoke test fakes the Ollama client and exercises the entire harness — tool
+schema generation, the agent ReAct loop, routing, worker streaming, and the
+summarizer — with no model or network required:
+
+```bash
+python3 tests/test_smoke.py
+```
+
+---
+
+## How It Works
+
+Every turn runs a single, loop-free pass:
+
+```
+router ─┬─ DIRECT ───────────────► stream reply
+        └─ one or more workers ──► summarizer ──► stream reply
+```
+
+1. **Router** (`orchestrator.py`) — one LLM call in JSON mode classifies the
+   request into `DIRECT` (just answer) or one/more workers.
+2. **Workers** — each runs a **ReAct loop** (`core/agent.py`): the model is
+   given its tools, calls them, reads the results, and loops until it produces a
+   final answer. Output is written to `workspace/` and the path returned.
+3. **Summarizer** — reads the workers' files and streams a synthesised reply
+   token-by-token to the UI.
+
+| Worker | Role | Tools |
+|--------|------|-------|
+| vDA | Data Analyst | SQL, Python, workspace |
+| vPM | Product Manager | document/spec generators, workspace |
+| vSWE | Software Engineer | Python, bash, workspace |
+| vDS | Data Scientist | Python, SQL, summarise, workspace |
+
+Workers can write **deliverable** files (`write_file`, kept and shown as
+download/preview links in the UI) and **scratch checkpoints** (`save_checkpoint`,
+auto-deleted when the task ends). Each worker can also be called directly via
+`POST /agents/{name}`.
+
+### The core harness
+
+```
+core/
+├── llm.py     # Ollama HTTP client — chat() (tool-calling) + stream() (tokens)
+├── tools.py   # @tool decorator: typed function → JSON-schema tool spec
+└── agent.py   # ReAct loop: call model → run tools → repeat → final answer
 ```
 
 ---
@@ -184,34 +155,35 @@ python main.py "Write a PRD for a user notification system"
 
 ```
 maybach/
-├── .env                  # Your config (never commit this)
-├── .env.example          # Template — defaults to Ollama
-├── llm.py                # LLM factory (switches provider via LLM_PROVIDER)
-├── requirements.txt      # Python dependencies
+├── config.py             # loads config.yaml → OLLAMA_* env vars
+├── config.yaml.example   # config template
+├── .env.example          # env var template
+├── llm.py                # convenience layer over core.llm + text helpers
+├── requirements.txt      # pyyaml, httpx, fastapi, uvicorn
 ├── main.py               # CLI entrypoint
-├── orchestrator.py       # LangGraph supervisor graph
-├── server.py             # FastAPI server
-├── agents/
-│   ├── vda.py            # Virtual Data Analyst
-│   ├── vpm.py            # Virtual Product Manager
-│   ├── vswe.py           # Virtual Software Engineer
-│   └── vds.py            # Virtual Data Scientist
-├── tools/
-│   ├── sql_tools.py      # SQL query execution
-│   ├── code_tools.py     # Python / bash execution
-│   └── research_tools.py # Document and list generation
-└── ui/                   # Next.js chat interface
+├── orchestrator.py       # hand-rolled supervisor (router → workers → summarizer)
+├── server.py             # FastAPI: /orchestrate(/stream), /agents/*, /files/*
+├── core/                 # the from-scratch agent harness (see above)
+├── agents/               # vda.py, vpm.py, vswe.py, vds.py
+├── tools/                # sql_tools, code_tools, research_tools, workspace_tools
+├── tests/                # test_smoke.py (no model required)
+└── ui/                   # Next.js chat interface (SSE streaming)
 ```
 
-## How It Works
+---
 
-Every task goes through a **router** that picks the right worker(s):
+## Adding a tool
 
-| Worker | Role | Does |
-|--------|------|------|
-| vDA | Data Analyst | SQL queries, data exploration, metrics |
-| vPM | Product Manager | PRDs, specs, roadmaps, backlogs |
-| vSWE | Software Engineer | Code, debugging, scripts |
-| vDS | Data Scientist | ML models, stats, predictions |
+Write a typed, documented function and decorate it — the schema is derived
+automatically from the signature and docstring:
 
-The router can run workers **in parallel** (e.g. vDA + vDS simultaneously) or chain them sequentially. Each worker can also be called independently via `POST /agents/{name}`.
+```python
+from core.tools import tool
+
+@tool
+def fetch_weather(city: str, units: str = "celsius") -> str:
+    """Get the current weather for a city."""
+    ...
+```
+
+Then add it to a worker's tool list in `agents/<name>.py`.

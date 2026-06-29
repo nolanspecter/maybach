@@ -1,48 +1,52 @@
 """
-Orchestrator — LangGraph supervisor that routes tasks to virtual employees.
+Maybach orchestrator — a hand-rolled supervisor (no LangGraph).
 
-Graph shape:
-    START → router → [Send(vDA), Send(vSWE), ...] → aggregator → router → FINISH → summarizer → END
-                   → direct → END
+One turn, one pass — structurally loop-free:
 
-Workers write output to workspace/ and return the file path.
-Summarizer reads those files and synthesises a final response for the user.
+    router  ─┬─ DIRECT ──────────────► stream reply
+             └─ one or more workers ──► summarizer ──► stream reply
+
+The router is an LLM JSON classifier. Workers run sequentially; each writes its
+output to workspace/ and returns the file path. The summarizer reads those files
+and streams a synthesised answer to the user.
+
+History is a list of plain {"role", "content"} dicts. Only the user's message
+and the final assistant reply are persisted per turn — the per-worker file
+pointers stay internal so the router never re-dispatches a finished worker.
+
+Public API:
+    run_stream(task, history) -> Iterator[event dict]   # for SSE
+    run(task, history)        -> (reply, history, agents)
 """
+from __future__ import annotations
+
+import json
+import queue
 import re
+import threading
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Iterator
+
 from config import load_config
 
-# Must run before llm/agent imports — get_llm() reads env vars at module level
+# Must run before any client is constructed — sets OLLAMA_* from config.yaml.
 load_config()
 
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from langgraph.types import Send
-from pydantic import BaseModel
-
-from llm import get_llm, HAIKU
+from core.llm import OllamaClient, router_model
 import agents.vda as vda_agent
-import agents.vswe as vswe_agent
 import agents.vpm as vpm_agent
+import agents.vswe as vswe_agent
 import agents.vds as vds_agent
 
-# ── State ─────────────────────────────────────────────────────────────────────
+WORKERS = {
+    "vDA": vda_agent,
+    "vPM": vpm_agent,
+    "vSWE": vswe_agent,
+    "vDS": vds_agent,
+}
+_VALID = set(WORKERS) | {"DIRECT", "FINISH"}
 
-def _last_value(a: list[str], b: list[str]) -> list[str]:
-    # Workers all write [] to next_workers — last writer wins is fine here
-    return b
-
-
-class OrchestratorState(BaseModel):
-    # add_messages reducer handles concurrent writes from parallel worker nodes
-    messages: Annotated[list[BaseMessage], add_messages] = []
-    # _last_value reducer needed when parallel workers write next_workers simultaneously
-    next_workers: Annotated[list[str], _last_value] = []
-
-
-# ── Router ────────────────────────────────────────────────────────────────────
+# ── Prompts ───────────────────────────────────────────────────────────────────
 
 ROUTER_PROMPT = """You are Maybach, an AI assistant with a team of virtual employees.
 
@@ -51,81 +55,19 @@ Available workers:
 - vPM  — product manager: PRDs, specs, roadmaps, requirements, prioritization
 - vSWE — software engineer: writing code, debugging, building features, scripts
 - vDS  — data scientist: ML models, statistical analysis, predictions, feature engineering
-- DIRECT — respond yourself for greetings, small talk, general questions, capability
-           questions, or anything that does NOT require data/code/specs/models
-- FINISH — a worker has already responded and the task is complete
+- DIRECT — respond yourself for greetings, small talk, general questions, or
+           capability questions that do NOT require data/code/specs/models
 
-Decision process (follow every time):
-1. Check if workers have already responded (look for [vDA], [vPM], [vSWE], [vDS] in history).
-   - If yes → choose FINISH unless the user explicitly asked for follow-up work.
-2. If no workers have responded yet, classify the message:
-   - Greeting, small talk, "what can you do?" → DIRECT
-   - Needs data/SQL/numbers → vDA
-   - Needs specs/PRD/roadmap → vPM
-   - Needs code/script/debug → vSWE
-   - Needs ML/stats/model → vDS
-   - Multiple independent needs → multiple workers in parallel
+Classify the user's LATEST message:
+- Greeting, small talk, "what can you do?"  → ["DIRECT"]
+- Needs data / SQL / numbers                 → ["vDA"]
+- Needs specs / PRD / roadmap                → ["vPM"]
+- Needs code / script / debug / build a file → ["vSWE"]
+- Needs ML / stats / model / prediction      → ["vDS"]
+- Several independent needs                   → list every worker required
 
-Rules:
-- FINISH immediately after workers respond — do not loop back to workers unless asked.
-- FINISH must be the only entry in the list when chosen.
-- Do not repeat a worker already in history unless the user asked for a follow-up."""
-
-WorkerName = Literal["vDA", "vPM", "vSWE", "vDS", "DIRECT", "FINISH"]
-
-class RouterDecision(BaseModel):
-    workers: list[WorkerName]
-    reasoning: str
-
-# Router uses Haiku — classification only, no heavy reasoning needed
-_router_llm = get_llm(model=HAIKU).with_structured_output(RouterDecision)
-
-
-def router_node(state: OrchestratorState) -> OrchestratorState:
-    # Pass full conversation so router avoids re-calling workers that already responded
-    messages = [("system", ROUTER_PROMPT)] + [
-        ("human" if isinstance(m, HumanMessage) else "assistant", m.content)
-        for m in state.messages
-    ]
-    decision: RouterDecision = _router_llm.invoke(messages)
-    return OrchestratorState(messages=state.messages, next_workers=decision.workers)
-
-
-_WORKER_SET = {"vDA", "vPM", "vSWE", "vDS"}
-
-def _already_responded(state: OrchestratorState) -> set[str]:
-    """Workers whose [LABEL] reply already appears in message history."""
-    done: set[str] = set()
-    for m in state.messages:
-        if not isinstance(m, AIMessage):
-            continue
-        c = m.content if isinstance(m.content, str) else ""
-        match = re.match(r"^\[(\w+)\]", c)
-        if match and match.group(1) in _WORKER_SET:
-            done.add(match.group(1))
-    return done
-
-
-def route_decision(state: OrchestratorState) -> list[Send] | str:
-    workers = state.next_workers
-    done = _already_responded(state)
-
-    # Once ANY worker has produced output this turn, the terminal step is
-    # ALWAYS the summarizer — never a direct response, never FINISH without
-    # synthesis. Guarantees the user always gets the agents' work summarised.
-    if done:
-        pending = [w for w in (workers or []) if w in _WORKER_SET and w not in done]
-        return [Send(w, state) for w in pending] if pending else "summarizer"
-
-    # First pass — no workers have run yet.
-    if not workers or workers == ["FINISH"]:
-        return "summarizer"
-    if workers == ["DIRECT"]:
-        return "direct"
-    return [Send(w, state) for w in workers]
-
-
-# ── Direct response node ──────────────────────────────────────────────────────
+Respond with ONLY a JSON object, no prose:
+{"workers": ["vSWE"], "reasoning": "short why"}"""
 
 DIRECT_PROMPT = """You are Maybach, an AI assistant backed by a team of virtual employees:
 - vDA (Data Analyst) — SQL queries, data exploration, metrics
@@ -136,145 +78,159 @@ DIRECT_PROMPT = """You are Maybach, an AI assistant backed by a team of virtual 
 For conversational messages, respond naturally and helpfully.
 When describing your capabilities, be concrete about what each worker can do."""
 
-_direct_llm = get_llm()
-
-
-def direct_node(state: OrchestratorState) -> OrchestratorState:
-    messages = [("system", DIRECT_PROMPT)] + [
-        ("human" if isinstance(m, HumanMessage) else "assistant", m.content)
-        for m in state.messages
-    ]
-    response = _direct_llm.invoke(messages)
-    reply = AIMessage(content=response.content)
-    return OrchestratorState(messages=[reply], next_workers=[])
-
-
-# ── Worker nodes ──────────────────────────────────────────────────────────────
-
-def _worker_node(agent_module, label: str):
-    def node(state: OrchestratorState) -> OrchestratorState:
-        # Workers are stateless — always receive the original human task
-        last_human = next(
-            (m.content for m in reversed(state.messages) if isinstance(m, HumanMessage)),
-            "",
-        )
-        # agent.run() writes output to workspace/ and returns the file path
-        file_path = agent_module.run(last_human)
-        reply = AIMessage(content=f"[{label}] {file_path}")
-        return OrchestratorState(messages=[reply], next_workers=[])
-    node.__name__ = label
-    return node
-
-
-vda_node  = _worker_node(vda_agent,  "vDA")
-vswe_node = _worker_node(vswe_agent, "vSWE")
-vpm_node  = _worker_node(vpm_agent,  "vPM")
-vds_node  = _worker_node(vds_agent,  "vDS")
-
-
-# ── Aggregator — join point after parallel workers ────────────────────────────
-
-def aggregator_node(state: OrchestratorState) -> OrchestratorState:
-    # State already merged by add_messages; just reset next_workers and loop to router
-    return OrchestratorState(messages=state.messages, next_workers=[])
-
-
-# ── Summarizer — reads workspace files and responds to the user ───────────────
-
 SUMMARIZER_PROMPT = """You are Maybach. Virtual employees have completed their work and
 saved results to files. Read their outputs and synthesise a clear, concise response
-for the user. Combine insights where relevant. Don't just repeat file contents — interpret
-and present the key points."""
+for the user. Combine insights where relevant. Don't just repeat file contents —
+interpret and present the key points."""
 
-_summarizer_llm = get_llm()
+# ── Clients ───────────────────────────────────────────────────────────────────
 
-
-def summarizer_node(state: OrchestratorState) -> OrchestratorState:
-    # Extract workspace paths from worker messages like "[vDA] workspace/vda_abc123.md"
-    worker_outputs = []
-    for msg in state.messages:
-        if not isinstance(msg, AIMessage):
-            continue
-        match = re.match(r"^\[(\w+)\]\s*(workspace/\S+)", msg.content)
-        if not match:
-            continue
-        label, path_str = match.group(1), match.group(2)
-        path = Path(path_str)
-        if path.exists():
-            content = path.read_text(encoding="utf-8")
-            worker_outputs.append(f"## [{label}] output\n{content}")
-
-    user_question = next(
-        (m.content for m in state.messages if isinstance(m, HumanMessage)), ""
-    )
-
-    if not worker_outputs:
-        # No worker files found — shouldn't happen, but fail gracefully
-        reply = AIMessage(content="Workers completed but no output files were found.")
-        return OrchestratorState(messages=[reply], next_workers=[])
-
-    summary_input = (
-        f"User asked: {user_question}\n\n"
-        + "\n\n".join(worker_outputs)
-    )
-    messages = [("system", SUMMARIZER_PROMPT), ("human", summary_input)]
-    response = _summarizer_llm.invoke(messages)
-    reply = AIMessage(content=response.content)
-    return OrchestratorState(messages=[reply], next_workers=[])
+_client = OllamaClient()                      # direct + summarizer (main model)
+_router = OllamaClient(model=router_model())  # classification only
 
 
-# ── Graph ─────────────────────────────────────────────────────────────────────
+# ── Router ────────────────────────────────────────────────────────────────────
 
-def build_graph() -> StateGraph:
-    g = StateGraph(OrchestratorState)
-
-    g.add_node("router",     router_node)
-    g.add_node("direct",     direct_node)
-    g.add_node("aggregator", aggregator_node)
-    g.add_node("summarizer", summarizer_node)
-    g.add_node("vDA",        vda_node)
-    g.add_node("vPM",        vpm_node)
-    g.add_node("vSWE",       vswe_node)
-    g.add_node("vDS",        vds_node)
-
-    g.add_edge(START, "router")
-
-    # Fan-out: router → parallel workers, direct response, or summarizer
-    g.add_conditional_edges(
-        "router", route_decision,
-        ["vDA", "vPM", "vSWE", "vDS", "direct", "summarizer"]
-    )
-
-    # All workers converge at aggregator, then back to router for FINISH decision
-    for worker in ["vDA", "vPM", "vSWE", "vDS"]:
-        g.add_edge(worker, "aggregator")
-
-    g.add_edge("aggregator", "router")
-
-    # Summarizer and direct are both terminal
-    g.add_edge("summarizer", END)
-    g.add_edge("direct", END)
-
-    return g.compile()
+def _transcript(history: list[dict]) -> str:
+    return "\n".join(f'{m["role"]}: {m["content"]}' for m in history)
 
 
-graph = build_graph()
+def _route(turn: list[dict]) -> list[str]:
+    """Ask the router which workers (if any) should handle this turn."""
+    messages = [
+        {"role": "system", "content": ROUTER_PROMPT},
+        {"role": "user", "content": _transcript(turn)},
+    ]
+    msg = _router.chat(messages, fmt="json", temperature=0)
+    raw = (msg.get("content") or "").strip()
+    try:
+        workers = json.loads(raw).get("workers", [])
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        workers = []
+    workers = [w for w in workers if w in _VALID]
+    # Anything unclassifiable → answer directly rather than stall.
+    return workers or ["DIRECT"]
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
+# ── Streaming entry point ─────────────────────────────────────────────────────
 
-def run(task: str, history: list[BaseMessage] | None = None) -> tuple[str, list[BaseMessage]]:
-    """Run a task through the supervisor graph.
-
-    Returns (response_text, updated_message_list) so callers can persist history.
-    """
+def run_stream(task: str, history: list[dict] | None = None) -> Iterator[dict]:
+    """Drive one turn, yielding UI events. The final event is
+    {"type": "result", "result", "agents", "history"}."""
     prior = list(history or [])
-    init_state = OrchestratorState(messages=prior + [HumanMessage(content=task)])
-    final_state = graph.invoke(init_state, config={"recursion_limit": 50})
-    all_msgs: list[BaseMessage] = final_state["messages"]
-    result = "No result."
-    for msg in reversed(all_msgs):
-        if isinstance(msg, AIMessage):
-            result = msg.content
+    turn = prior + [{"role": "user", "content": task}]
+
+    yield {"type": "routing"}
+    decision = _route(turn)
+    workers = [w for w in decision if w in WORKERS]
+
+    if not workers:
+        # ── Direct path ──────────────────────────────────────────────────────
+        yield {"type": "direct"}
+        reply = yield from _stream_reply(
+            [{"role": "system", "content": DIRECT_PROMPT}] + turn
+        )
+        yield _result(reply, ["Maybach"], turn)
+        return
+
+    # ── Worker path ──────────────────────────────────────────────────────────
+    ran: list[str] = []
+    outputs: list[str] = []
+    for name in workers:
+        yield {"type": "agent_start", "agent": name}
+        try:
+            file_path = yield from _run_worker(name, task)
+        except Exception as e:  # noqa: BLE001 — report and keep going
+            yield {"type": "error", "message": f"{name} failed: {e}"}
+            continue
+        ran.append(name)
+        yield {"type": "agent_done", "agent": name, "file": file_path}
+
+        body = _read_output(file_path)
+        if body is not None:
+            outputs.append(f"## [{name}] output\n{body}")
+
+    # ── Summarize ────────────────────────────────────────────────────────────
+    yield {"type": "summarizing"}
+    if outputs:
+        summary_input = f"User asked: {task}\n\n" + "\n\n".join(outputs)
+    else:
+        summary_input = (
+            f"User asked: {task}\n\n"
+            "The workers produced no readable output. Apologise briefly and ask "
+            "the user to rephrase."
+        )
+    reply = yield from _stream_reply([
+        {"role": "system", "content": SUMMARIZER_PROMPT},
+        {"role": "user", "content": summary_input},
+    ])
+    yield _result(reply, ran or ["Maybach"], turn)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _stream_reply(messages: list[dict]) -> Iterator[dict]:
+    """Stream a model reply token-by-token, yielding {"type":"token"} events.
+    Returns the full text (via generator return)."""
+    parts: list[str] = []
+    for tok in _client.stream(messages):
+        parts.append(tok)
+        yield {"type": "token", "text": tok}
+    return "".join(parts)
+
+
+def _run_worker(name: str, task: str) -> Iterator[dict]:
+    """Run a worker in a thread so its tool events stream live while the
+    blocking agent loop executes. Returns the worker's output file path."""
+    q: queue.Queue = queue.Queue()
+    box: dict = {}
+
+    def work():
+        try:
+            box["file"] = WORKERS[name].run(task, on_event=q.put)
+        except Exception as e:  # noqa: BLE001 — surfaced to caller below
+            box["error"] = e
+        finally:
+            q.put(None)  # sentinel: worker finished
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    while True:
+        ev = q.get()
+        if ev is None:
             break
-    return result, all_msgs
+        yield ev
+    t.join()
+
+    if "error" in box:
+        raise box["error"]
+    return box.get("file", "")
+
+
+def _read_output(file_path: str) -> str | None:
+    """Read a worker's workspace file, or None if missing."""
+    if not file_path:
+        return None
+    p = Path(file_path)
+    if p.exists():
+        return p.read_text(encoding="utf-8")
+    return None
+
+
+def _result(reply: str, agents: list[str], turn: list[dict]) -> dict:
+    new_history = turn + [{"role": "assistant", "content": reply}]
+    return {"type": "result", "result": reply, "agents": agents, "history": new_history}
+
+
+# ── Non-streaming entry point ─────────────────────────────────────────────────
+
+def run(task: str, history: list[dict] | None = None) -> tuple[str, list[dict], list[str]]:
+    """Run one turn without streaming.
+    Returns (reply_text, updated_history, agents_that_ran)."""
+    reply, new_history, agents = "", list(history or []), ["Maybach"]
+    for ev in run_stream(task, history):
+        if ev["type"] == "result":
+            reply = ev["result"]
+            new_history = ev["history"]
+            agents = ev["agents"]
+    return reply, new_history, agents

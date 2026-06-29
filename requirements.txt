@@ -1,11 +1,6 @@
+# Maybach — built from scratch, no LangChain/LangGraph.
+# LLM access is a thin HTTP client over a local Ollama server.
 pyyaml>=6.0.0
-langchain>=0.3.0
-langchain-aws>=0.2.0
-langchain-ollama>=0.2.0
-langgraph>=0.2.0
-langgraph-sdk>=0.1.0
+httpx>=0.28.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
-httpx>=0.28.0
-python-dotenv>=1.0.0
-boto3>=1.35.0
