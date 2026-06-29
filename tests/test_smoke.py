@@ -190,6 +190,11 @@ def test_output_guarantee_and_salvage():
     written = out.salvage_deliverables("vDS", "```python\nx = 1\n```", before)
     check("unnamed block gets generic name", written == ["vds_output1.py"])
 
+    # Unnamed HTML block → index.html so the UI can preview/visit it.
+    before = out.deliverable_snapshot()
+    written = out.salvage_deliverables("vSWE", "```html\n<h1>hi</h1>\n```", before)
+    check("unnamed html block → index.html", written == ["index.html"])
+
     # If a deliverable already exists from this run, salvage is skipped.
     before = out.deliverable_snapshot()
     (_workspace() / "explicit.txt").write_text("saved by write_file", encoding="utf-8")
@@ -200,6 +205,15 @@ def test_output_guarantee_and_salvage():
     before = out.deliverable_snapshot()
     written = out.salvage_deliverables("vSWE", "Output:\n```\n4\n```", before)
     check("plain (non-code) block not salvaged", written == [])
+
+
+def test_summary_grounding():
+    print("orchestrator — summary grounded in real files")
+    inp_with = orchestrator._summary_input("build a page", ["## [vSWE] note"], ["index.html"])
+    check("lists produced file by name", "- index.html" in inp_with)
+    inp_none = orchestrator._summary_input("build a page", [], [])
+    check("no files → explicit (none)", "- (none)" in inp_none)
+    check("user task carried into summary", "build a page" in inp_none)
 
 
 def test_text_fallback():
@@ -218,7 +232,8 @@ def test_text_fallback():
 
 if __name__ == "__main__":
     for t in (test_tools, test_agent_loop, test_output_guarantee_and_salvage,
-              test_text_fallback, test_direct, test_worker_path, test_run_tuple):
+              test_summary_grounding, test_text_fallback,
+              test_direct, test_worker_path, test_run_tuple):
         t()
     print()
     if _failures:

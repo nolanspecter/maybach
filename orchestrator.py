@@ -33,6 +33,7 @@ from config import load_config
 load_config()
 
 from core.llm import OllamaClient, router_model
+from core.output import deliverable_snapshot
 import agents.vda as vda_agent
 import agents.vpm as vpm_agent
 import agents.vswe as vswe_agent
@@ -78,10 +79,18 @@ DIRECT_PROMPT = """You are Maybach, an AI assistant backed by a team of virtual 
 For conversational messages, respond naturally and helpfully.
 When describing your capabilities, be concrete about what each worker can do."""
 
-SUMMARIZER_PROMPT = """You are Maybach. Virtual employees have completed their work and
-saved results to files. Read their outputs and synthesise a clear, concise response
-for the user. Combine insights where relevant. Don't just repeat file contents —
-interpret and present the key points."""
+SUMMARIZER_PROMPT = """You are Maybach. Virtual employees have completed their work.
+You are given the list of files they saved this turn and their notes. Write a clear,
+concise reply for the user.
+
+Honesty rules — follow exactly:
+- Only say a file, app, or page was created if it appears in the "Files saved" list.
+- If the user asked for a file/app/page and that list is "(none)", tell them it was
+  NOT saved this time and include the content inline so they still have it. Never
+  claim a deliverable exists when it does not.
+- When files exist, refer to them by name so the user knows what to open or download.
+
+Interpret and present the key points — don't just dump file contents."""
 
 # ── Clients ───────────────────────────────────────────────────────────────────
 
@@ -134,6 +143,7 @@ def run_stream(task: str, history: list[dict] | None = None) -> Iterator[dict]:
         return
 
     # ── Worker path ──────────────────────────────────────────────────────────
+    before_files = deliverable_snapshot()  # to report what this turn actually saved
     ran: list[str] = []
     outputs: list[str] = []
     for name in workers:
@@ -152,22 +162,27 @@ def run_stream(task: str, history: list[dict] | None = None) -> Iterator[dict]:
 
     # ── Summarize ────────────────────────────────────────────────────────────
     yield {"type": "summarizing"}
-    if outputs:
-        summary_input = f"User asked: {task}\n\n" + "\n\n".join(outputs)
-    else:
-        summary_input = (
-            f"User asked: {task}\n\n"
-            "The workers produced no readable output. Apologise briefly and ask "
-            "the user to rephrase."
-        )
+    produced = sorted(deliverable_snapshot() - before_files)
     reply = yield from _stream_reply([
         {"role": "system", "content": SUMMARIZER_PROMPT},
-        {"role": "user", "content": summary_input},
+        {"role": "user", "content": _summary_input(task, outputs, produced)},
     ])
     yield _result(reply, ran or ["Maybach"], turn)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _summary_input(task: str, outputs: list[str], produced: list[str]) -> str:
+    """Grounded summarizer input: the real file list + the workers' notes, so
+    the reply can only honestly reference files that were actually saved."""
+    files = "\n".join(f"- {f}" for f in produced) if produced else "- (none)"
+    notes = "\n\n".join(outputs) if outputs else "(workers produced no readable notes)"
+    return (
+        f"User asked: {task}\n\n"
+        f"Files saved to the workspace this turn (downloadable by the user):\n{files}\n\n"
+        f"Worker notes:\n{notes}"
+    )
+
 
 def _stream_reply(messages: list[dict]) -> Iterator[dict]:
     """Stream a model reply token-by-token, yielding {"type":"token"} events.

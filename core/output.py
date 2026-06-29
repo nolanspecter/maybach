@@ -37,6 +37,9 @@ _LANG_EXT = {
     "c": "c", "cpp": "cpp",
 }
 
+# Conventional default filename for an unnamed block of a given type.
+_DEFAULT_NAME = {"html": "index.html"}
+
 
 def deliverable_snapshot(ws: Path | None = None) -> set[str]:
     """Workspace-relative paths of current deliverables (excludes summaries
@@ -88,7 +91,9 @@ def salvage_deliverables(label: str, content: str, before: set[str]) -> list[str
                 name = base
                 break
         if not name:
-            name = f"{label.lower()}_output{i}.{ext}"
+            # A web page should land as index.html so the UI can preview/visit it.
+            default = _DEFAULT_NAME.get(ext)
+            name = default if default and default not in used else f"{label.lower()}_output{i}.{ext}"
         used.add(name)
         try:
             (ws / name).write_text(code + "\n", encoding="utf-8")
